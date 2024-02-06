@@ -4,7 +4,7 @@ from kivy.uix.label import Label
 
 def decode_data(data):
   #TO BE IMPLEMENTED LATER
-  return data;
+  return data
 
 class MyApp(App):
   def build(self):
