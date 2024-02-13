@@ -9,44 +9,64 @@ from kivy.clock import Clock
 NUM_OF_MODULES = 10
 THERMISTORS_PER_MODULE = 13
 
-Builder.load_file("view/test.kv")
-
 def decode_data(data):
   #TO BE IMPLEMENTED LATER
   return data
 
 class Start(Screen):
-
-  def add_buttons(self):
-    new_btn = Button(text="hello")
-    self.ids.grid_id.add_widget(new_btn)
+  pass
 
 
 class MyApp(App):
   
   def build(self):
-    # self.layout = MyRootWidget()
+    self.modules = GridLayout(rows=NUM_OF_MODULES)
+    # MODULE 1
+    self.module1 = GridLayout(cols=THERMISTORS_PER_MODULE)
+
+
+    self.thermistor1 = GridLayout(rows=2, orientation="tb-lr")
+    self.thermistor1.add_widget(Label(text="Temp."))
+    self.thermistor1.add_widget(Label(text="Thermistor ID"))
+
+    self.thermistor2 = GridLayout(rows=2, orientation="tb-lr")
+    self.thermistor2.add_widget(Label(text="Temp."))
+    self.thermistor2.add_widget(Label(text="Thermistor ID"))
+
+    self.thermistor3 = GridLayout(rows=2, orientation="tb-lr")
+    self.thermistor3.add_widget(Label(text="Temp."))
+    self.thermistor3.add_widget(Label(text="Thermistor ID"))
+
+    self.module1.add_widget(Label(text="Module 1"))
+    self.module1.add_widget(self.thermistor1)
+    self.module1.add_widget(self.thermistor2)
+    self.module1.add_widget(self.thermistor3)
     
-    # self.segments = GridLayout(rows=NUM_OF_MODULES)
-    # self.segment1 = GridLayout(cols=2)
+    self.modules.add_widget(self.module1)
+    
+    # MODULE 2
+    self.module2 = GridLayout(cols=THERMISTORS_PER_MODULE)
+    self.module2.add_widget(Label(text="Module 2"))
 
-    # self.thermistor1 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor1.add_widget(Label(text="Temp."))
-    # self.thermistor1.add_widget(Label(text="Thermistor ID"))
+    self.thermistor4 = GridLayout(rows=2, orientation="tb-lr")
+    self.thermistor4.add_widget(Label(text="Temp."))
+    self.thermistor4.add_widget(Label(text="Thermistor ID"))
 
-    # self.thermistor2 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor2.add_widget(Label(text="Temp."))
-    # self.thermistor2.add_widget(Label(text="Thermistor ID"))
+    self.thermistor5 = GridLayout(rows=2, orientation="tb-lr")
+    self.thermistor5.add_widget(Label(text="Temp."))
+    self.thermistor5.add_widget(Label(text="Thermistor ID"))
 
-    # self.thermistor3 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor3.add_widget(Label(text="Temp."))
-    # self.thermistor3.add_widget(Label(text="Thermistor ID"))
+    self.thermistor6 = GridLayout(rows=2, orientation="tb-lr")
+    self.thermistor6.add_widget(Label(text="Temp."))
+    self.thermistor6.add_widget(Label(text="Thermistor ID"))
 
-    # self.segments.add_widget(self.segment1)
-    # self.layout.add_widget(self.segments)
-    # print("TEST")
-    return Start()
-    # return self.segments
+    
+    self.module2.add_widget(self.thermistor4)
+    self.module2.add_widget(self.thermistor5)
+    self.module2.add_widget(self.thermistor6)
+    
+    self.modules.add_widget(self.module2)
+    return self.modules
 
   
   # def update(self, *args):
