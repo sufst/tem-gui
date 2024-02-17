@@ -13,6 +13,7 @@ THERMISTORS_PER_MODULE = 13
 
 def decode_data(data: List[bytes]) -> None:
   # This probably won't run. I am writing it directly in GH :(
+  # Endianess
 
   # 4 byte ID
   id = data[0:4] #? Inclusive?
