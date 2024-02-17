@@ -6,10 +6,24 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.label import Label
 from kivy.clock import Clock
 
+from dataclasses import dataclass
 from typing import List
 
-NUM_OF_MODULES = 10
-THERMISTORS_PER_MODULE = 13
+N_MODULES = 10
+N_THERMISTORS_PER_MODULE = 13
+
+@dataclass
+class IDs:
+  BMS_BC_ID: int = 406451072 # int("1839F380", 16)
+  GENERAL_BC_ID: int = 406385536 # int("1838F380", 16)
+
+class Module:
+  def __init__(self) -> None:
+    self.thermistors:float = [0.0] * N_THERMISTORS_PER_MODULE
+    
+modules: List[Module] = [Module()] * N_MODULES
+
+last_read_module: int
 
 def decode_data(data: List[bytes]) -> None:
   # This probably won't run. I am writing it directly in GH :(
@@ -18,10 +32,10 @@ def decode_data(data: List[bytes]) -> None:
   # 4 byte ID
   id = data[0:4] #? Inclusive?
 
-  match(id):
-    case 0x1839F380:
+  match(int.from_bytes(id, byteorder="big", signed=False)):
+    case IDs.BMS_BC_ID:
       _decode_bmsbc(data[4:]) #? Does this work? Who knows
-    case 0x1838F380:
+    case IDs.GENERAL_BC_ID:
       _decode_gbc(data[4:]) #?
     case _:
       pass
@@ -41,9 +55,9 @@ class Start(Screen):
 class MyApp(App):
   
   def build(self):
-    self.modules = GridLayout(rows=NUM_OF_MODULES)
+    self.modules = GridLayout(rows=N_MODULES)
     # MODULE 1
-    self.module1 = GridLayout(cols=THERMISTORS_PER_MODULE)
+    self.module1 = GridLayout(cols=N_THERMISTORS_PER_MODULE)
 
 
     self.thermistor1 = GridLayout(rows=2, orientation="tb-lr")
@@ -66,7 +80,7 @@ class MyApp(App):
     self.modules.add_widget(self.module1)
     
     # MODULE 2
-    self.module2 = GridLayout(cols=THERMISTORS_PER_MODULE)
+    self.module2 = GridLayout(cols=N_THERMISTORS_PER_MODULE)
     self.module2.add_widget(Label(text="Module 2"))
 
     self.thermistor4 = GridLayout(rows=2, orientation="tb-lr")
