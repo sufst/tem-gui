@@ -6,12 +6,32 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.label import Label
 from kivy.clock import Clock
 
+from typing import List
+
 NUM_OF_MODULES = 10
 THERMISTORS_PER_MODULE = 13
 
-def decode_data(data):
+def decode_data(data: List[bytes]) -> None:
+  # This probably won't run. I am writing it directly in GH :(
+
+  # 4 byte ID
+  id = data[0:4] #? Inclusive?
+
+  match(id):
+    case 0x1839F380:
+      _decode_bmsbc(data[4:]) #? Does this work? Who knows
+    case 0x1838F380:
+      _decode_gbc(data[4:]) #?
+    case _:
+      pass
+  
   #TO BE IMPLEMENTED LATER
-  return data
+
+def _decode_bmsbc(payload: List[bytes]) -> None:
+  pass
+
+def _decode_gbc(payload: List[bytes]) -> None:
+  pass
 
 class Start(Screen):
   pass
