@@ -8,19 +8,33 @@ from kivy.uix.label import Label
 from kivy.clock import Clock
 from kivy.app import EventDispatcher
 from kivy.properties import NumericProperty
-
+from kivy.core.window import Window
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.boxlayout import BoxLayout
 from threading import Thread, Lock, Event
 from time import sleep
-
+from kivy.graphics import Color, Rectangle
 from dataclasses import dataclass
 from typing import List, Tuple
-
+from kivy.uix.widget import Widget
 import random
 
 init_done = Event()
 
 N_MODULES = 10
 N_THERMISTORS_PER_MODULE = 13
+
+app_quit = False
+app_quit_lock = Lock()
+
+def get_app_quit():
+  with app_quit_lock:
+    return app_quit
+
+def set_app_quit(b):
+  global app_quit
+  with app_quit_lock:
+    app_quit = b
 
 @dataclass
 class IDs:
@@ -42,13 +56,14 @@ class Thermistor(EventDispatcher):
     return f"{self.n_module}:{self.n_therm} = {self.temp} °C\t(min: {self.min_temp}, max: {self.max_temp})"
     
   def update_temp(self, new_temp: float):
-    self.temp = new_temp
-    self.min_temp = min(self.min_temp, new_temp)
-    self.max_temp = max(self.max_temp, new_temp)
+    new_temp_rounded = round(new_temp, 2)
+    self.temp = new_temp_rounded
+    self.min_temp = min(self.min_temp, new_temp_rounded)
+    self.max_temp = max(self.max_temp, new_temp_rounded)
     print(f"Temperature for thermistor {self.n_module}:{self.n_therm} was updated to {self.temp}")
     
   def temp_callback(self, instance, value):
-    self.temp_label.text = str(self.temp)
+    self.temp_label.text = str(self.temp) + "°C"
     
 modules: List[Tuple[Lock, List[Thermistor]]] = []
 
@@ -98,87 +113,42 @@ def reset_thermistors():
         t.update_temp(0.0)
   print("All thermistors reset")
 
+def add_border(widget, color=(1, 0, 0, 1), thickness=2): #! Doesn't work
+    with widget.canvas.before:
+        Color(*color)  # Set border color
+        Rectangle(
+            pos=(widget.x + thickness, widget.y + thickness),  # Adjust position for inner border
+            size=(widget.width - 2 * thickness, widget.height - 2 * thickness)
+        )
+    return widget
+
 class MyApp(App):
     
   def build(self):
-    self.modules_ui = GridLayout(rows=N_MODULES)
+    self.root_layout = GridLayout(rows=N_MODULES)
+    self.root_layout.bind(minimum_height=self.root_layout.setter('height'))
 
     init_done.wait()
 
     for m in range(N_MODULES):
-      grid = GridLayout(cols=N_THERMISTORS_PER_MODULE)
+      module_layout = BoxLayout(orientation='horizontal')
+      module_layout = add_border(module_layout)
+      module_layout.add_widget(Label(text=f"Module {m}", bold=True))
       for t in range(N_THERMISTORS_PER_MODULE):
         with modules[m][0]:
-          t_grid = GridLayout(rows=2, orientation="tb-lr")
+          thermistor_layout = GridLayout(rows=2, spacing=5, orientation="tb-lr")
           temp_label = Label(text="")
           modules[m][1][t].temp_label = temp_label
           modules[m][1][t].bind(temp=modules[m][1][t].temp_callback)
-          t_grid.add_widget(Label(text=f"{modules[m][1][t].n_therm}"))
-          t_grid.add_widget(temp_label)
-          grid.add_widget(t_grid)
-      self.modules_ui.add_widget(grid)
+          thermistor_layout.add_widget(Label(text=f"{modules[m][1][t].n_therm}"))
+          thermistor_layout.add_widget(temp_label)
+          module_layout.add_widget(thermistor_layout)
+      self.root_layout.add_widget(module_layout)
     
-    # # MODULE 1
-    # self.module1 = GridLayout(cols=N_THERMISTORS_PER_MODULE)
-
-
-    # self.thermistor1 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor1.add_widget(Label(text="Temp."))
-    # self.thermistor1.add_widget(Label(text="Thermistor ID"))
-
-    # self.thermistor2 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor2.add_widget(Label(text="Temp."))
-    # self.thermistor2.add_widget(Label(text="Thermistor ID"))
-
-    # self.thermistor3 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor3.add_widget(Label(text="Temp."))
-    # self.thermistor3.add_widget(Label(text="Thermistor ID"))
-
-    # self.module1.add_widget(Label(text="Module 1"))
-    # self.module1.add_widget(self.thermistor1)
-    # self.module1.add_widget(self.thermistor2)
-    # self.module1.add_widget(self.thermistor3)
-    
-    # self.modules.add_widget(self.module1)
-    
-    # # MODULE 2
-    # self.module2 = GridLayout(cols=N_THERMISTORS_PER_MODULE)
-    # self.module2.add_widget(Label(text="Module 2"))
-
-    # self.thermistor4 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor4.add_widget(Label(text="Temp."))
-    # self.thermistor4.add_widget(Label(text="Thermistor ID"))
-
-    # self.thermistor5 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor5.add_widget(Label(text="Temp."))
-    # self.thermistor5.add_widget(Label(text="Thermistor ID"))
-
-    # self.thermistor6 = GridLayout(rows=2, orientation="tb-lr")
-    # self.thermistor6.add_widget(Label(text="Temp."))
-    # self.thermistor6.add_widget(Label(text="Thermistor ID"))
-
-    
-    # self.module2.add_widget(self.thermistor4)
-    # self.module2.add_widget(self.thermistor5)
-    # self.module2.add_widget(self.thermistor6)
-    
-    # self.modules.add_widget(self.module2)
-    return self.modules_ui
-
+    # self.root.add_widget(self.layout)
+    return self.root_layout
   
-  # def update(self, *args):
-  #   for n_m, m in enumerate(self.modules_ui.children):
-  #     with modules[n_m]:
-  #       for n_t, t in enumerate(m):
-  #         print(t)
-
-
-if __name__ == '__main__':
-  app = MyApp()
-  
-  ui_thread = Thread(target=app.run)
-  ui_thread.start()
-  
+def serial_thread_target():
   init_thermistors()
   
   for n_m in range(N_MODULES):
@@ -188,12 +158,23 @@ if __name__ == '__main__':
         print(f"\t{t}")
   
   # Serial loop
-  while(True):
-    sleep(5)
+  while(not get_app_quit()):
+    sleep(1)
     for n_m in range(N_MODULES):
       with modules[n_m][0]:
         for t in modules[n_m][1]:
           t.update_temp(random.random() * random.randint(0,255))
+          
+  print("Serial thread finished cleanly")
+
+if __name__ == '__main__':
+  app = MyApp()
   
+  serial_thread = Thread(target=serial_thread_target)
+  serial_thread.start()
   
-  ui_thread.join()
+  app.run()
+  
+  set_app_quit(True)
+  
+  serial_thread.join()
