@@ -136,7 +136,7 @@ class MyApp(App):
       module_layout.add_widget(Label(text=f"Module {m}", bold=True))
       for t in range(N_THERMISTORS_PER_MODULE):
         with modules[m][0]:
-          thermistor_layout = GridLayout(rows=2, spacing=5, orientation="tb-lr")
+          thermistor_layout = GridLayout(rows=2, spacing=0, orientation="tb-lr", padding=0)
           temp_label = Label(text="")
           modules[m][1][t].temp_label = temp_label
           modules[m][1][t].bind(temp=modules[m][1][t].temp_callback)
