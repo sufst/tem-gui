@@ -22,7 +22,7 @@ import random
 init_done = Event()
 
 N_MODULES = 10
-N_THERMISTORS_PER_MODULE = 13
+N_THERMISTORS_PER_MODULE = 24
 
 app_quit = False
 app_quit_lock = Lock()
