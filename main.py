@@ -113,8 +113,8 @@ def reset_thermistors():
         t.update_temp(0.0)
   print("All thermistors reset")
 
-def add_border(widget, color=(1, 0, 0, 1), thickness=2): #! Doesn't work
-    with widget.canvas.before:
+def add_border(widget, color=(1, 0, 0, 1), thickness=1): #! Doesn't work
+    with widget.canvas:
         Color(*color)  # Set border color
         Rectangle(
             pos=(widget.x + thickness, widget.y + thickness),  # Adjust position for inner border
@@ -125,6 +125,9 @@ def add_border(widget, color=(1, 0, 0, 1), thickness=2): #! Doesn't work
 class MyApp(App):
     
   def build(self):
+    self.title = "TEM GUI"
+    self.icon = r"stag.svg"
+    
     self.root_layout = GridLayout(rows=N_MODULES)
     self.root_layout.bind(minimum_height=self.root_layout.setter('height'))
 
