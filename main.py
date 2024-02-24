@@ -229,10 +229,7 @@ def serial_thread_target():
       for t in modules[n_m].thermistors:
         print(f"\t{t}")
         
-  # _decode_gbc(example_gen_payload)
-  # _decode_bmsbc(example_bms_payload)
-  # return
-  
+  ########################################################## Serial Decode
   # Serial loop
   # sp: serial.Serial
   
@@ -267,8 +264,15 @@ def serial_thread_target():
   #   decode_data(sp.readline())
     
   # sp.close()
+  ##########################################################
+  
+  ########################################################## Example Messages      
+  # _decode_gbc(example_gen_payload)
+  # _decode_bmsbc(example_bms_payload)
+  # return
+  ##########################################################
 
-
+  ########################################################## Random Values
   while(not get_app_quit()):
     for n_m in range(N_MODULES):
       modules[n_m].min_temp = round(random.random() * random.randint(0,255), 2)
@@ -278,6 +282,7 @@ def serial_thread_target():
         for t in modules[n_m].thermistors:
           t.update_temp(round(random.random() * random.randint(0,255), 2))
     sleep(1)
+  ##########################################################
           
   print("Serial thread finished cleanly")
 
