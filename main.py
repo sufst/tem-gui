@@ -81,14 +81,19 @@ class Thermistor(EventDispatcher):
   def temp_callback(self, instance, value):
     self.temp_label.text = str(self.temp) + "°C"
     
-class Module():
+class Module(EventDispatcher):
+  max_temp = NumericProperty(0)
+  avg_temp = NumericProperty(0)
+  min_temp = NumericProperty(0)
+  
   def __init__(self, n_m, therms):
     self.n_module = n_m
     self.lock = Lock()
     self.thermistors: List[Thermistor] = therms
-    self.max_temp = 0.0
-    self.avg_temp = 0.0
-    self.min_temp = 0.0
+    self.label = None
+    
+  def temp_callback(self, instance, value):
+    self.label.text = f"Module {self.n_module}\nMin: {self.min_temp}\nAvg: {self.avg_temp}\nMax:{self.max_temp}"
     
     
 #modules: List[Tuple[Lock, List[Thermistor]]] = []
@@ -117,6 +122,7 @@ def _decode_bmsbc(payload: bytes) -> None:
   modules[n_m].min_temp = int.from_bytes(payload[1:2], byteorder=BYTE_ORDER, signed=True)
   modules[n_m].max_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
   modules[n_m].avg_temp = int.from_bytes(payload[3:4], byteorder=BYTE_ORDER, signed=True)
+  print(f"Module {n_m}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
 
 def _decode_gbc(payload: bytes) -> None:
   rel_id = int.from_bytes(payload[0:2], byteorder=BYTE_ORDER, signed=False)
@@ -183,11 +189,11 @@ class MyApp(App):
 
     for m in range(N_MODULES):
       module_layout = BoxLayout(orientation='horizontal')
-      # module_layout = add_border(module_layout)
-      m_label = Label(text=f"Module {m}", bold=True, halign="center", valign="center")
-      # with m_label.canvas:
-      #   Color(0, 1, 0, 0.25)
-      #   Rectangle(pos=m_label.pos, size=m_label.size)
+      
+      #m_label = Label(text=f"Module {m}", bold=True, halign="center", valign="center")
+      m_label = Label(text="", bold=True, halign="center", valign="center")
+      modules[m].label = m_label
+      modules[m].bind(min_temp=modules[m].temp_callback, avg_temp=modules[m].temp_callback, max_temp=modules[m].temp_callback)
         
       module_layout.add_widget(m_label)
       for t in range(N_THERMISTORS_PER_MODULE):
@@ -224,6 +230,7 @@ def serial_thread_target():
         print(f"\t{t}")
         
   # _decode_gbc(example_gen_payload)
+  # _decode_bmsbc(example_bms_payload)
   # return
   
   # Serial loop
@@ -264,9 +271,12 @@ def serial_thread_target():
 
   while(not get_app_quit()):
     for n_m in range(N_MODULES):
+      modules[n_m].min_temp = round(random.random() * random.randint(0,255), 2)
+      modules[n_m].avg_temp = round(random.random() * random.randint(0,255), 2)
+      modules[n_m].max_temp = round(random.random() * random.randint(0,255), 2)
       with modules[n_m].lock:
         for t in modules[n_m].thermistors:
-          t.update_temp(random.random() * random.randint(0,255))
+          t.update_temp(round(random.random() * random.randint(0,255), 2))
     sleep(1)
           
   print("Serial thread finished cleanly")
