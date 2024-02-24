@@ -17,12 +17,21 @@ from kivy.graphics import Color, Rectangle
 from dataclasses import dataclass
 from typing import List, Tuple
 from kivy.uix.widget import Widget
+import serial
+import sys
 import random
 
 init_done = Event()
+ui_done = Event()
 
 N_MODULES = 10
 N_THERMISTORS_PER_MODULE = 24
+
+SERIAL_PORT_LINUX = "/dev/ttyACM0"
+SERIAL_PORT_WINDOW = "COM1"
+SERIAL_PORT_MAC = ""
+
+SERIAL_BAUD_RATE = 115200
 
 app_quit = False
 app_quit_lock = Lock()
@@ -103,7 +112,6 @@ def init_thermistors():
     modules.append((Lock(), therm_list))
   print("All thermistors initialised")
   reset_thermistors()
-  init_done.set()
   
 def reset_thermistors():
   global modules
@@ -114,11 +122,11 @@ def reset_thermistors():
   print("All thermistors reset")
 
 def add_border(widget, color=(1, 0, 0, 1), thickness=1): #! Doesn't work
-    with widget.canvas:
-        Color(*color)  # Set border color
+    with widget.canvas.before:
+        Color(color)  # Set border color
         Rectangle(
-            pos=(widget.x + thickness, widget.y + thickness),  # Adjust position for inner border
-            size=(widget.width - 2 * thickness, widget.height - 2 * thickness)
+            pos=widget.pos,  # Adjust position for inner border
+            size=widget.size
         )
     return widget
 
@@ -128,31 +136,55 @@ class MyApp(App):
     self.title = "TEM GUI"
     self.icon = r"stag.svg"
     
-    self.root_layout = GridLayout(rows=N_MODULES)
+    self.root_layout = GridLayout(rows=N_MODULES+1)
     self.root_layout.bind(minimum_height=self.root_layout.setter('height'))
 
     init_done.wait()
+    
+    header = BoxLayout(orientation="horizontal", spacing=0, padding=0)
+    for i in range (-1, N_THERMISTORS_PER_MODULE):
+      if(i == -1):
+        header.add_widget(Label(text=""))
+      else: 
+        header.add_widget(Label(text=f"Therm.\n{i}", bold=True, halign="center", valign="center"))
+      
+    self.root_layout.add_widget(header)
 
     for m in range(N_MODULES):
       module_layout = BoxLayout(orientation='horizontal')
-      module_layout = add_border(module_layout)
-      module_layout.add_widget(Label(text=f"Module {m}", bold=True))
+      # module_layout = add_border(module_layout)
+      m_label = Label(text=f"Module {m}", bold=True, halign="center", valign="center")
+      # with m_label.canvas:
+      #   Color(0, 1, 0, 0.25)
+      #   Rectangle(pos=m_label.pos, size=m_label.size)
+        
+      module_layout.add_widget(m_label)
       for t in range(N_THERMISTORS_PER_MODULE):
         with modules[m][0]:
-          thermistor_layout = GridLayout(rows=2, spacing=0, orientation="tb-lr", padding=0)
-          temp_label = Label(text="")
+          thermistor_layout = GridLayout(rows=1, spacing=0, orientation="tb-lr", padding=0)
+          temp_label = Label(text="", halign="center", valign="center")
           modules[m][1][t].temp_label = temp_label
           modules[m][1][t].bind(temp=modules[m][1][t].temp_callback)
-          thermistor_layout.add_widget(Label(text=f"{modules[m][1][t].n_therm}"))
+          #thermistor_layout.add_widget(Label(text=f"{modules[m][1][t].n_therm}"))
           thermistor_layout.add_widget(temp_label)
           module_layout.add_widget(thermistor_layout)
       self.root_layout.add_widget(module_layout)
     
+    ui_done.set()
     # self.root.add_widget(self.layout)
     return self.root_layout
   
+def set_therm_error():
+  for n_m in range(N_MODULES):
+    with modules[n_m][0]:
+      for t in modules[n_m][1]:
+        t.update_temp(sys.float_info.min_exp)
+  
 def serial_thread_target():
   init_thermistors()
+  
+  init_done.set()
+  ui_done.wait()
   
   for n_m in range(N_MODULES):
     with modules[n_m][0]:
@@ -161,12 +193,47 @@ def serial_thread_target():
         print(f"\t{t}")
   
   # Serial loop
-  while(not get_app_quit()):
-    sleep(1)
-    for n_m in range(N_MODULES):
-      with modules[n_m][0]:
-        for t in modules[n_m][1]:
-          t.update_temp(random.random() * random.randint(0,255))
+  sp: serial.Serial
+  
+  plat = sys.platform
+  
+  try:
+    if plat.startswith('linux'):
+      sp = serial.Serial(SERIAL_PORT_LINUX, SERIAL_BAUD_RATE)
+    elif plat.startswith('win32'):
+      sp = serial.Serial(SERIAL_PORT_WINDOW, SERIAL_BAUD_RATE)
+    elif plat.startswith('darwin'):
+      sp = serial.Serial(SERIAL_PORT_MAC, SERIAL_BAUD_RATE)
+    else:
+      print(f"Unrecognised platform: {plat}")
+      set_therm_error()
+      return
+  except serial.SerialException as e:
+    print(f"An error occurred when opening the serial port: {e}")
+    set_therm_error()
+    return
+  except ValueError as e:
+    print(f"Invalid parameters for serial connection: {e}")
+    set_therm_error()
+    return
+  
+  if(not sp.is_open()):
+    sp.open()
+  
+  print("Serial port opened successfully")
+  
+  while(sp.is_open() and not get_app_quit()):
+    decode_data(sp.readline())
+    
+  sp.close()
+
+
+  # while(not get_app_quit()):
+  #   sleep(1)
+  #   for n_m in range(N_MODULES):
+  #     with modules[n_m][0]:
+  #       for t in modules[n_m][1]:
+  #         t.update_temp(random.random() * random.randint(0,255))
           
   print("Serial thread finished cleanly")
 
