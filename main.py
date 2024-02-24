@@ -20,18 +20,25 @@ from kivy.uix.widget import Widget
 import serial
 import sys
 import random
+import math
+
+example_bms_payload: bytes = b'\x00\x14\x2b\x1f\x18\x17\x00\xce'
+example_gen_payload: bytes = b'\x00\x17\x2b\x18\x14\x2b\x17\x00'
 
 init_done = Event()
 ui_done = Event()
 
 N_MODULES = 10
 N_THERMISTORS_PER_MODULE = 24
+N_THERMISTORS = N_MODULES * N_THERMISTORS_PER_MODULE
 
 SERIAL_PORT_LINUX = "/dev/ttyACM0"
 SERIAL_PORT_WINDOW = "COM1"
 SERIAL_PORT_MAC = ""
 
 SERIAL_BAUD_RATE = 115200
+
+BYTE_ORDER= "big"
 
 app_quit = False
 app_quit_lock = Lock()
@@ -74,7 +81,18 @@ class Thermistor(EventDispatcher):
   def temp_callback(self, instance, value):
     self.temp_label.text = str(self.temp) + "°C"
     
-modules: List[Tuple[Lock, List[Thermistor]]] = []
+class Module():
+  def __init__(self, n_m, therms):
+    self.n_module = n_m
+    self.lock = Lock()
+    self.thermistors: List[Thermistor] = therms
+    self.max_temp = 0.0
+    self.avg_temp = 0.0
+    self.min_temp = 0.0
+    
+    
+#modules: List[Tuple[Lock, List[Thermistor]]] = []
+modules: List[Module] = []
 
 last_read_module: int
 
@@ -85,20 +103,33 @@ def decode_data(data: bytes) -> None:
   # 4 byte ID
   id = data[0:4]
 
-  match(int.from_bytes(id, byteorder="big", signed=False)):
+  match(int.from_bytes(id, byteorder=BYTE_ORDER, signed=False)):
     case IDs.BMS_BC_ID:
       _decode_bmsbc(data[4:]) #? Does this work? Who knows
     case IDs.GENERAL_BC_ID:
       _decode_gbc(data[4:]) #?
     case _:
-      pass
+      pass # Not a TEM message
   
 
 def _decode_bmsbc(payload: bytes) -> None:
-  pass
+  n_m = int.from_bytes(payload[0:1], byteorder=BYTE_ORDER, signed=False)
+  modules[n_m].min_temp = int.from_bytes(payload[1:2], byteorder=BYTE_ORDER, signed=True)
+  modules[n_m].max_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
+  modules[n_m].avg_temp = int.from_bytes(payload[3:4], byteorder=BYTE_ORDER, signed=True)
 
 def _decode_gbc(payload: bytes) -> None:
-  pass
+  rel_id = int.from_bytes(payload[0:2], byteorder=BYTE_ORDER, signed=False)
+  print(rel_id)
+  n_m = math.floor(rel_id / N_THERMISTORS_PER_MODULE)
+  print(n_m)
+  n_t = rel_id % N_THERMISTORS_PER_MODULE
+  print(n_t)
+  new_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
+  print(new_temp)
+  
+  with modules[n_m].lock:
+    modules[n_m].thermistors[n_t].update_temp(float(new_temp))
 
 class Start(Screen):
   pass
@@ -109,15 +140,15 @@ def init_thermistors():
     therm_list = []
     for n_t in range(N_THERMISTORS_PER_MODULE):
       therm_list.append(Thermistor(n_m, n_t))
-    modules.append((Lock(), therm_list))
+    modules.append(Module(n_m, therm_list))
   print("All thermistors initialised")
   reset_thermistors()
   
 def reset_thermistors():
   global modules
   for m in modules:
-    with m[0]:
-      for t in m[1]:
+    with m.lock:
+      for t in m.thermistors:
         t.update_temp(0.0)
   print("All thermistors reset")
 
@@ -160,12 +191,12 @@ class MyApp(App):
         
       module_layout.add_widget(m_label)
       for t in range(N_THERMISTORS_PER_MODULE):
-        with modules[m][0]:
+        with modules[m].lock:
           thermistor_layout = GridLayout(rows=1, spacing=0, orientation="tb-lr", padding=0)
           temp_label = Label(text="", halign="center", valign="center")
-          modules[m][1][t].temp_label = temp_label
-          modules[m][1][t].bind(temp=modules[m][1][t].temp_callback)
-          #thermistor_layout.add_widget(Label(text=f"{modules[m][1][t].n_therm}"))
+          modules[m].thermistors[t].temp_label = temp_label
+          modules[m].thermistors[t].bind(temp=modules[m].thermistors[t].temp_callback)
+          #thermistor_layout.add_widget(Label(text=f"{modules[m].thermistors[t].n_therm}"))
           thermistor_layout.add_widget(temp_label)
           module_layout.add_widget(thermistor_layout)
       self.root_layout.add_widget(module_layout)
@@ -176,8 +207,8 @@ class MyApp(App):
   
 def set_therm_error():
   for n_m in range(N_MODULES):
-    with modules[n_m][0]:
-      for t in modules[n_m][1]:
+    with modules[n_m].lock:
+      for t in modules[n_m].thermistors:
         t.update_temp(sys.float_info.min_exp)
   
 def serial_thread_target():
@@ -187,53 +218,56 @@ def serial_thread_target():
   ui_done.wait()
   
   for n_m in range(N_MODULES):
-    with modules[n_m][0]:
+    with modules[n_m].lock:
       print(f"Module {n_m}")
-      for t in modules[n_m][1]:
+      for t in modules[n_m].thermistors:
         print(f"\t{t}")
+        
+  # _decode_gbc(example_gen_payload)
+  # return
   
   # Serial loop
-  sp: serial.Serial
+  # sp: serial.Serial
   
-  plat = sys.platform
+  # plat = sys.platform
   
-  try:
-    if plat.startswith('linux'):
-      sp = serial.Serial(SERIAL_PORT_LINUX, SERIAL_BAUD_RATE)
-    elif plat.startswith('win32'):
-      sp = serial.Serial(SERIAL_PORT_WINDOW, SERIAL_BAUD_RATE)
-    elif plat.startswith('darwin'):
-      sp = serial.Serial(SERIAL_PORT_MAC, SERIAL_BAUD_RATE)
-    else:
-      print(f"Unrecognised platform: {plat}")
-      set_therm_error()
-      return
-  except serial.SerialException as e:
-    print(f"An error occurred when opening the serial port: {e}")
-    set_therm_error()
-    return
-  except ValueError as e:
-    print(f"Invalid parameters for serial connection: {e}")
-    set_therm_error()
-    return
+  # try:
+  #   if plat.startswith('linux'):
+  #     sp = serial.Serial(SERIAL_PORT_LINUX, SERIAL_BAUD_RATE)
+  #   elif plat.startswith('win32'):
+  #     sp = serial.Serial(SERIAL_PORT_WINDOW, SERIAL_BAUD_RATE)
+  #   elif plat.startswith('darwin'):
+  #     sp = serial.Serial(SERIAL_PORT_MAC, SERIAL_BAUD_RATE)
+  #   else:
+  #     print(f"Unrecognised platform: {plat}")
+  #     set_therm_error()
+  #     return
+  # except serial.SerialException as e:
+  #   print(f"An error occurred when opening the serial port: {e}")
+  #   set_therm_error()
+  #   return
+  # except ValueError as e:
+  #   print(f"Invalid parameters for serial connection: {e}")
+  #   set_therm_error()
+  #   return
   
-  if(not sp.is_open()):
-    sp.open()
+  # if(not sp.is_open()):
+  #   sp.open()
   
-  print("Serial port opened successfully")
+  # print("Serial port opened successfully")
   
-  while(sp.is_open() and not get_app_quit()):
-    decode_data(sp.readline())
+  # while(sp.is_open() and not get_app_quit()):
+  #   decode_data(sp.readline())
     
-  sp.close()
+  # sp.close()
 
 
-  # while(not get_app_quit()):
-  #   sleep(1)
-  #   for n_m in range(N_MODULES):
-  #     with modules[n_m][0]:
-  #       for t in modules[n_m][1]:
-  #         t.update_temp(random.random() * random.randint(0,255))
+  while(not get_app_quit()):
+    for n_m in range(N_MODULES):
+      with modules[n_m].lock:
+        for t in modules[n_m].thermistors:
+          t.update_temp(random.random() * random.randint(0,255))
+    sleep(1)
           
   print("Serial thread finished cleanly")
 
