@@ -22,9 +22,6 @@ import sys
 import random
 import math
 
-example_bms_payload: bytes = b'\x00\x14\x2b\x1f\x18\x17\x00\xce'
-example_gen_payload: bytes = b'\x00\x17\x2b\x18\x14\x2b\x17\x00'
-
 init_done = Event()
 ui_done = Event()
 
@@ -42,6 +39,9 @@ BYTE_ORDER= "big"
 
 app_quit = False
 app_quit_lock = Lock()
+
+example_bms_payload: bytes = b'\x00\x14\x2b\x1f\x18\x17\x00\xce'
+example_gen_payload: bytes = b'\x00\x17\x2b\x18\x14\x2b\x17\x00'
 
 def get_app_quit():
   with app_quit_lock:
@@ -93,7 +93,7 @@ class Module(EventDispatcher):
     self.label = None
     
   def temp_callback(self, instance, value):
-    self.label.text = f"Module {self.n_module}\nMin: {self.min_temp}\nAvg: {self.avg_temp}\nMax:{self.max_temp}"
+    self.label.text = f"[b]Module {self.n_module}[/b]\nMin: {self.min_temp}\nAvg: {self.avg_temp}\nMax:{self.max_temp}"
     
     
 #modules: List[Tuple[Lock, List[Thermistor]]] = []
@@ -191,7 +191,7 @@ class MyApp(App):
       module_layout = BoxLayout(orientation='horizontal')
       
       #m_label = Label(text=f"Module {m}", bold=True, halign="center", valign="center")
-      m_label = Label(text="", bold=True, halign="center", valign="center")
+      m_label = Label(text="", halign="center", valign="center", markup=True)
       modules[m].label = m_label
       modules[m].bind(min_temp=modules[m].temp_callback, avg_temp=modules[m].temp_callback, max_temp=modules[m].temp_callback)
         
@@ -229,7 +229,7 @@ def serial_thread_target():
       for t in modules[n_m].thermistors:
         print(f"\t{t}")
         
-  ########################################################## Serial Decode
+  ############################################################################### Serial Decode
   # Serial loop
   # sp: serial.Serial
   
@@ -264,15 +264,15 @@ def serial_thread_target():
   #   decode_data(sp.readline())
     
   # sp.close()
-  ##########################################################
+  ###############################################################################
   
-  ########################################################## Example Messages      
+  ############################################################################### Example Messages      
   # _decode_gbc(example_gen_payload)
   # _decode_bmsbc(example_bms_payload)
   # return
-  ##########################################################
+  ###############################################################################
 
-  ########################################################## Random Values
+  ############################################################################### Random Values
   while(not get_app_quit()):
     for n_m in range(N_MODULES):
       modules[n_m].min_temp = round(random.random() * random.randint(0,255), 2)
@@ -282,7 +282,7 @@ def serial_thread_target():
         for t in modules[n_m].thermistors:
           t.update_temp(round(random.random() * random.randint(0,255), 2))
     sleep(1)
-  ##########################################################
+  ###############################################################################
           
   print("Serial thread finished cleanly")
 
