@@ -1,4 +1,3 @@
-import kivy
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -17,10 +16,12 @@ from kivy.graphics import Color, Rectangle
 from dataclasses import dataclass
 from typing import List, Tuple
 from kivy.uix.widget import Widget
+from colour import Color
 import serial
 import sys
 import random
 import math
+
 
 init_done = Event()
 ui_done = Event()
@@ -36,6 +37,9 @@ SERIAL_PORT_MAC = ""
 SERIAL_BAUD_RATE = 115200
 
 BYTE_ORDER= "big"
+
+# COLOR_GRADIENT = list(Color("blue").range_to(Color("white"),50)) + list(Color("white").range_to(Color("red"),50))
+COLOR_GRADIENT = list(Color("white").range_to(Color("red"),100))
 
 app_quit = False
 app_quit_lock = Lock()
@@ -79,7 +83,19 @@ class Thermistor(EventDispatcher):
     print(f"Temperature for thermistor {self.n_module}:{self.n_therm} was updated to {self.temp}")
     
   def temp_callback(self, instance, value):
+    self.max_temp = max(self.temp, self.max_temp)
+    self.min_temp = min(self.temp, self.min_temp)
+
     self.temp_label.text = str(self.temp) + "°C"
+    if self.max_temp - self.min_temp != 0:
+      proportion = (self.temp - self.min_temp) / (self.max_temp - self.min_temp)
+      index = math.floor(proportion * (len(COLOR_GRADIENT) - 1))
+
+      # print(f'Colour index: {index}, min: {self.min_temp}, max: {self.max_temp}, current: {self.temp}')
+      colour = COLOR_GRADIENT[index].get_rgb() + (1,)
+      self.temp_label.color = colour
+
+
     
 class Module(EventDispatcher):
   max_temp = NumericProperty(0)
