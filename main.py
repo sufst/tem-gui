@@ -1,26 +1,26 @@
-from kivy.app import App
+from kivy.app import App, EventDispatcher
+from kivy.clock import Clock
+from kivy.core.window import Window
+from kivy.graphics import Color, Rectangle
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.uix.gridlayout import GridLayout
-from kivy.uix.screenmanager import Screen
-from kivy.uix.label import Label
-from kivy.clock import Clock
-from kivy.app import EventDispatcher
 from kivy.properties import NumericProperty
-from kivy.core.window import Window
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.boxlayout import BoxLayout
-from threading import Thread, Lock, Event
-from time import sleep
-from kivy.graphics import Color, Rectangle
-from dataclasses import dataclass
-from typing import List, Tuple
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.label import Label
+from kivy.uix.screenmanager import Screen
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
+
 from colour import Color
-import serial
-import sys
+from dataclasses import dataclass
 import random
 import math
+import serial
+import sys
+from threading import Thread, Lock, Event
+from time import sleep
+from typing import List, Tuple
 
 
 init_done = Event()
@@ -38,7 +38,6 @@ SERIAL_BAUD_RATE = 115200
 
 BYTE_ORDER= "big"
 
-# COLOR_GRADIENT = list(Color("blue").range_to(Color("white"),50)) + list(Color("white").range_to(Color("red"),50))
 COLOR_GRADIENT = list(Color("white").range_to(Color("red"),100))
 
 app_quit = False
@@ -74,26 +73,28 @@ class Thermistor(EventDispatcher):
     
   def __repr__(self) -> str:
     return f"{self.n_module}:{self.n_therm} = {self.temp} °C\t(min: {self.min_temp}, max: {self.max_temp})"
-    
+
   def update_temp(self, new_temp: float):
     new_temp_rounded = round(new_temp, 2)
     self.temp = new_temp_rounded
     self.min_temp = min(self.min_temp, new_temp_rounded)
     self.max_temp = max(self.max_temp, new_temp_rounded)
-    print(f"Temperature for thermistor {self.n_module}:{self.n_therm} was updated to {self.temp}")
-    
+    print(f"Temperature for thermistor {self.n_module}:{self.n_therm} was updated to {self.temp} °C")
+
+  def get_temp_colour(self, value, min, max):
+    if max - min != 0:
+      proportion = (value - min) / (max - min)
+      index = math.floor(proportion * (len(COLOR_GRADIENT) - 1))
+      # print(f'Colour index: {index}, min: {self.min_temp}, max: {self.max_temp}, current: {self.temp}')
+      colour = COLOR_GRADIENT[index].get_rgb() + (1,)
+      return colour
+
   def temp_callback(self, instance, value):
     self.max_temp = max(self.temp, self.max_temp)
     self.min_temp = min(self.temp, self.min_temp)
 
     self.temp_label.text = str(self.temp) + "°C"
-    if self.max_temp - self.min_temp != 0:
-      proportion = (self.temp - self.min_temp) / (self.max_temp - self.min_temp)
-      index = math.floor(proportion * (len(COLOR_GRADIENT) - 1))
-
-      # print(f'Colour index: {index}, min: {self.min_temp}, max: {self.max_temp}, current: {self.temp}')
-      colour = COLOR_GRADIENT[index].get_rgb() + (1,)
-      self.temp_label.color = colour
+    self.temp_label.color = self.get_temp_colour(self.temp, self.min_temp, self.max_temp)
 
 
     
@@ -114,7 +115,6 @@ class Module(EventDispatcher):
     
 #modules: List[Tuple[Lock, List[Thermistor]]] = []
 modules: List[Module] = []
-
 last_read_module: int
 
 def decode_data(data: bytes) -> None:
@@ -174,13 +174,10 @@ def reset_thermistors():
         t.update_temp(0.0)
   print("All thermistors reset")
 
-def add_border(widget, color=(1, 0, 0, 1), thickness=1): #! Doesn't work
+def add_border(widget, colour=(1, 0, 0, 1), thickness=1): #! Doesn't work
     with widget.canvas.before:
-        Color(color)  # Set border color
-        Rectangle(
-            pos=widget.pos,  # Adjust position for inner border
-            size=widget.size
-        )
+        Color(colour)
+        Rectangle(pos=widget.pos, size=widget.size, width=thickness)
     return widget
 
 class MyApp(App):
@@ -210,15 +207,14 @@ class MyApp(App):
       m_label = Label(text="", halign="center", valign="center", markup=True)
       modules[m].label = m_label
       modules[m].bind(min_temp=modules[m].temp_callback, avg_temp=modules[m].temp_callback, max_temp=modules[m].temp_callback)
-        
       module_layout.add_widget(m_label)
+
       for t in range(N_THERMISTORS_PER_MODULE):
         with modules[m].lock:
           thermistor_layout = GridLayout(rows=1, spacing=0, orientation="tb-lr", padding=0)
           temp_label = Label(text="", halign="center", valign="center")
           modules[m].thermistors[t].temp_label = temp_label
           modules[m].thermistors[t].bind(temp=modules[m].thermistors[t].temp_callback)
-          #thermistor_layout.add_widget(Label(text=f"{modules[m].thermistors[t].n_therm}"))
           thermistor_layout.add_widget(temp_label)
           module_layout.add_widget(thermistor_layout)
       self.root_layout.add_widget(module_layout)
