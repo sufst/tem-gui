@@ -26,7 +26,7 @@ from typing import List, Tuple
 init_done = Event()
 ui_done = Event()
 
-N_MODULES = 10
+N_MODULES = 9
 N_THERMISTORS_PER_MODULE = 24
 N_THERMISTORS = N_MODULES * N_THERMISTORS_PER_MODULE
 
