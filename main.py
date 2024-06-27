@@ -257,25 +257,33 @@ def serial_thread_target():
         
         
   ############################################################################### python-CAN attempt at decoding
-  try:
-    if plat.startswith('linux'):
-      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
-    elif plat.startswith('win32'):
-      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
-    elif plat.startswith('darwin'):
-      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_MAC, bitrate=SERIAL_BAUD_RATE)
-    else:
-      print(f"Unrecognised platform: {plat}")
-      set_therm_error()
-      return
-  except can.CanInitializationError as e:
-    print(f"An error occurred when opening the can bus: {e}")
-    set_therm_error()
-    return
-  except ValueError as e:
-    print(f"Invalid parameters for can bus: {e}")
-    set_therm_error()
-    return
+  # try:
+  #   if plat.startswith('linux'):
+  #     bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
+  #   elif plat.startswith('win32'):
+  #     bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
+  #   elif plat.startswith('darwin'):
+  #     bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_MAC, bitrate=SERIAL_BAUD_RATE)
+  #   else:
+  #     print(f"Unrecognised platform: {plat}")
+  #     set_therm_error()
+  #     return
+  # except can.CanInitializationError as e:
+  #   print(f"An error occurred when opening the can bus: {e}")
+  #   set_therm_error()
+  #   return
+  # except ValueError as e:
+  #   print(f"Invalid parameters for can bus: {e}")
+  #   set_therm_error()
+  #   return
+    
+  ###### UNCOMMENT AS NEEDED ######  
+    
+  # Linux
+  # bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
+  # Windows
+  bus = can.Bus(interface='serial',channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
+    
     
   while(not get_app_quit()):
     try:
