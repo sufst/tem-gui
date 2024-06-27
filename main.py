@@ -21,6 +21,9 @@ import sys
 from threading import Thread, Lock, Event
 from time import sleep
 from typing import List, Tuple
+import can # python-can
+import struct
+
 
 
 init_done = Event()
@@ -118,19 +121,25 @@ modules: List[Module] = []
 last_read_module: int
 
 def decode_data(data: bytes) -> None:
-  # This probably won't run. I am writing it directly in GH :(
-  # Endianess
+    # Extract the CAN ID (first 4 bytes)
+    can_id = int.from_bytes(data[0:4], byteorder=BYTE_ORDER)
 
-  # 4 byte ID
-  id = data[0:4]
-
-  match(int.from_bytes(id, byteorder=BYTE_ORDER, signed=False)):
-    case IDs.BMS_BC_ID:
-      _decode_bmsbc(data[4:]) #? Does this work? Who knows
-    case IDs.GENERAL_BC_ID:
-      _decode_gbc(data[4:]) #?
-    case _:
-      pass # Not a TEM message
+    match can_id:
+        case IDs.BMS_BC_ID:
+            _decode_bmsbc(data[4:])
+        case IDs.GENERAL_BC_ID:
+            _decode_gbc(data[4:])
+        case _:
+            print(f"Unknown CAN ID: {can_id}")
+            
+def decode_can_data(can_id: bytes, data: bytes) -> None:
+  match can_id:
+        case IDs.BMS_BC_ID:
+            _decode_bmsbc(data)
+        case IDs.GENERAL_BC_ID:
+            _decode_gbc(data)
+        case _:
+            print(f"Unknown CAN ID: {can_id}")
   
 
 def _decode_bmsbc(payload: bytes) -> None:
@@ -138,6 +147,11 @@ def _decode_bmsbc(payload: bytes) -> None:
   modules[n_m].min_temp = int.from_bytes(payload[1:2], byteorder=BYTE_ORDER, signed=True)
   modules[n_m].max_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
   modules[n_m].avg_temp = int.from_bytes(payload[3:4], byteorder=BYTE_ORDER, signed=True)
+  # Check value with checksum
+  checksum = int.from_bytes(payload[7:8], byteorder=BYTE_ORDER, signed=False)
+  if checksum != (n_m + modules[n_m].min_temp + modules[n_m].max_temp + modules[n_m].avg_temp) % 256:
+    print(f"Checksum failed for module {n_m}")
+    modules[n_m]
   print(f"Module {n_m}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
 
 def _decode_gbc(payload: bytes) -> None:
@@ -241,6 +255,43 @@ def serial_thread_target():
       for t in modules[n_m].thermistors:
         print(f"\t{t}")
         
+        
+  ############################################################################### python-CAN attempt at decoding
+  try:
+    if plat.startswith('linux'):
+      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
+    elif plat.startswith('win32'):
+      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
+    elif plat.startswith('darwin'):
+      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_MAC, bitrate=SERIAL_BAUD_RATE)
+    else:
+      print(f"Unrecognised platform: {plat}")
+      set_therm_error()
+      return
+  except can.CanInitializationError as e:
+    print(f"An error occurred when opening the can bus: {e}")
+    set_therm_error()
+    return
+  except ValueError as e:
+    print(f"Invalid parameters for can bus: {e}")
+    set_therm_error()
+    return
+    
+  while(not get_app_quit()):
+    try:
+      message = bus.recv(timeout=1.0)
+      if message is not None:
+        decode_can_data(message.arbitration_id, message.data)
+        
+    except can.CanError as e:
+          print(f"CAN error: {e}")
+          set_therm_error()
+          break
+        
+  bus.shutdown()
+  print("CAN thread finished cleanly")
+  ###############################################################################
+        
   ############################################################################### Serial Decode
   # Serial loop
   # sp: serial.Serial
@@ -285,18 +336,50 @@ def serial_thread_target():
   ###############################################################################
 
   ############################################################################### Random Values
-  while(not get_app_quit()):
-    for n_m in range(N_MODULES):
-      modules[n_m].min_temp = round(random.random() * random.randint(0,255), 2)
-      modules[n_m].avg_temp = round(random.random() * random.randint(0,255), 2)
-      modules[n_m].max_temp = round(random.random() * random.randint(0,255), 2)
-      with modules[n_m].lock:
-        for t in modules[n_m].thermistors:
-          t.update_temp(round(random.random() * random.randint(0,255), 2))
-    sleep(1)
+  # while(not get_app_quit()):
+  #   for n_m in range(N_MODULES):
+  #     can_data = generate_random_can_data(n_m)
+  #     decode_data(can_data)
+  #     # modules[n_m].min_temp = round(random.random() * random.randint(0,255), 2)
+  #     # modules[n_m].avg_temp = round(random.random() * random.randint(0,255), 2)
+  #     # modules[n_m].max_temp = round(random.random() * random.randint(0,255), 2)
+  #     # with modules[n_m].lock:
+  #     #   for t in modules[n_m].thermistors:
+  #     #     t.update_temp(round(random.random() * random.randint(0,255), 2))
+  #   sleep(0.1)
   ###############################################################################
           
-  print("Serial thread finished cleanly")
+  # print("Serial thread finished cleanly")
+
+def generate_random_can_data(n_m: int) -> bytes:
+    # Randomly choose between BMS_BC_ID and GENERAL_BC_ID
+    can_id = random.choice([IDs.BMS_BC_ID, IDs.GENERAL_BC_ID])
+    
+    if can_id == IDs.BMS_BC_ID:
+        min_temp = random.randint(-20, 80)
+        max_temp = random.randint(min_temp, 80)
+        avg_temp = random.randint(min_temp, max_temp)
+        num_thermistors = random.randint(1, N_THERMISTORS_PER_MODULE)
+        highest_therm_id = random.randint(0, N_THERMISTORS_PER_MODULE - 1)
+        lowest_therm_id = random.randint(0, highest_therm_id)
+        checksum = (n_m + min_temp + max_temp + avg_temp + num_thermistors + 
+                    highest_therm_id + lowest_therm_id) % 256
+        # Match module message byte pattern
+        payload = struct.pack('>BbbbBBBB', n_m, min_temp, max_temp, avg_temp,
+                              num_thermistors, highest_therm_id, lowest_therm_id, checksum)
+    else:  # GENERAL_BC_ID
+        therm_id = random.randint(0, N_THERMISTORS - 1)
+        temp = random.randint(-20, 80)
+        num_thermistors = random.randint(1, N_THERMISTORS)
+        min_temp = random.randint(-20, temp)
+        max_temp = random.randint(temp, 80)
+        highest_therm_id = random.randint(0, N_THERMISTORS_PER_MODULE - 1)
+        lowest_therm_id = random.randint(0, highest_therm_id)
+        # Match general message byte pattern
+        payload = struct.pack('>HbBbbBB', therm_id, temp, num_thermistors, min_temp,
+                              max_temp, highest_therm_id, lowest_therm_id)
+    
+    return can_id.to_bytes(4, byteorder=BYTE_ORDER) + payload
 
 if __name__ == '__main__':
   app = MyApp()
