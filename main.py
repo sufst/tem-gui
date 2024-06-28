@@ -259,11 +259,11 @@ def serial_thread_target():
   ############################################################################### python-CAN attempt at decoding
   try:
     if sys.platform.startswith('linux'):
-      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
+      bus = can.Bus(interface="serial", channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
     elif sys.platform.startswith('win32'):
-      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
+      bus = can.Bus(interface="serial", channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
     elif sys.platform.startswith('darwin'):
-      bus = can.interfaces.serial.SerialBus(channel=SERIAL_PORT_MAC, bitrate=SERIAL_BAUD_RATE)
+      bus = can.Bus(interface="serial", channel=SERIAL_PORT_MAC, bitrate=SERIAL_BAUD_RATE)
     else:
       print(f"Unrecognised platform: {sys.platform}")
       set_therm_error()
