@@ -272,6 +272,10 @@ def serial_thread_target():
     print(f"An error occurred when opening the can bus: {e}")
     set_therm_error()
     return
+  except serial.SerialException as e:
+    print(f"An error occurred when opening the serial port: {e}")
+    set_therm_error()
+    return
   except ValueError as e:
     print(f"Invalid parameters for can bus: {e}")
     set_therm_error()
