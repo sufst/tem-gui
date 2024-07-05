@@ -33,7 +33,7 @@ N_MODULES = 9
 N_THERMISTORS_PER_MODULE = 24
 N_THERMISTORS = N_MODULES * N_THERMISTORS_PER_MODULE
 
-SERIAL_PORT_LINUX = "/dev/ttyACM0"
+SERIAL_PORT_LINUX = "/dev/ttyUSB0"
 SERIAL_PORT_WINDOW = "COM1"
 SERIAL_PORT_MAC = ""
 
@@ -60,8 +60,8 @@ def set_app_quit(b):
 
 @dataclass
 class IDs:
-  BMS_BC_ID: int = 406451072 # int("1839F380", 16)
-  GENERAL_BC_ID: int = 406385536 # int("1838F380", 16)
+  BMS_BC_ID: int = int("1839F380", 16)
+  GENERAL_BC_ID: int = int("1838F380", 16)
 
 
 class Thermistor(EventDispatcher):
@@ -124,22 +124,21 @@ def decode_data(data: bytes) -> None:
     # Extract the CAN ID (first 4 bytes)
     can_id = int.from_bytes(data[0:4], byteorder=BYTE_ORDER)
 
-    match can_id:
-        case IDs.BMS_BC_ID:
-            _decode_bmsbc(data[4:])
-        case IDs.GENERAL_BC_ID:
-            _decode_gbc(data[4:])
-        case _:
-            print(f"Unknown CAN ID: {can_id}")
+    if (can_id >> 2) == (0x1838f380 >> 2):
+      _decode_bmsbc(data[4:])
+    
+    # match can_id:
+    #     case IDs.BMS_BC_ID:
+    #         _decode_bmsbc(data[4:])
+    #     case IDs.GENERAL_BC_ID:
+    #         _decode_gbc(data[4:])
+    #     case _:
+    #         print(f"Unknown CAN ID: {can_id}")
             
 def decode_can_data(can_id: bytes, data: bytes) -> None:
-  match can_id:
-        case IDs.BMS_BC_ID:
-            _decode_bmsbc(data)
-        case IDs.GENERAL_BC_ID:
-            _decode_gbc(data)
-        case _:
-            print(f"Unknown CAN ID: {can_id}")
+  if (can_id >> 2) == (0x1838f380 >> 2):
+    #print(data[0], data[1], data[2], data[3])
+    _decode_gbc(data)
   
 
 def _decode_bmsbc(payload: bytes) -> None:
@@ -157,9 +156,9 @@ def _decode_bmsbc(payload: bytes) -> None:
 def _decode_gbc(payload: bytes) -> None:
   rel_id = int.from_bytes(payload[0:2], byteorder=BYTE_ORDER, signed=False)
   print(rel_id)
-  n_m = math.floor(rel_id / N_THERMISTORS_PER_MODULE)
+  n_m = math.floor(rel_id / 80)
   print(n_m)
-  n_t = rel_id % N_THERMISTORS_PER_MODULE
+  n_t = rel_id % 80
   print(n_t)
   new_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
   print(new_temp)
@@ -258,16 +257,17 @@ def serial_thread_target():
         
   ############################################################################### python-CAN attempt at decoding
   try:
-    if sys.platform.startswith('linux'):
-      bus = can.Bus(interface="serial", channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
-    elif sys.platform.startswith('win32'):
-      bus = can.Bus(interface="serial", channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
-    elif sys.platform.startswith('darwin'):
-      bus = can.Bus(interface="serial", channel=SERIAL_PORT_MAC, bitrate=SERIAL_BAUD_RATE)
-    else:
-      print(f"Unrecognised platform: {sys.platform}")
-      set_therm_error()
-      return
+    # if sys.platform.startswith('linux'):
+    #   bus = can.Bus(interface="serial", channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
+    # elif sys.platform.startswith('win32'):
+    #   bus = can.Bus(interface="serial", channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
+    # elif sys.platform.startswith('darwin'):
+    #   bus = can.Bus(interface="serial", channel=SERIAL_PORT_MAC, bitrate=SERIAL_BAUD_RATE)
+    # else:
+    #   print(f"Unrecognised platform: {sys.platform}")
+    #   set_therm_error()
+    #   return
+    bus = can.Bus(interface="socketcan", channel="can0")
   except can.CanInitializationError as e:
     print(f"An error occurred when opening the can bus: {e}")
     set_therm_error()
@@ -285,6 +285,7 @@ def serial_thread_target():
     try:
       message = bus.recv(timeout=1.0)
       if message is not None:
+        print(message)
         decode_can_data(message.arbitration_id, message.data)
         
     except can.CanError as e:
