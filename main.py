@@ -148,9 +148,8 @@ def _decode_bmsbc(payload: bytes) -> None:
   modules[n_m].avg_temp = int.from_bytes(payload[3:4], byteorder=BYTE_ORDER, signed=True)
   # Check value with checksum
   checksum = int.from_bytes(payload[7:8], byteorder=BYTE_ORDER, signed=False)
-  if checksum != (n_m + modules[n_m].min_temp + modules[n_m].max_temp + modules[n_m].avg_temp) % 256:
+  if checksum != (n_m + modules[n_m].min_temp + modules[n_m].max_temp + modules[n_m].avg_temp + 0x41) % 256: # 0x41 is a magic number?
     print(f"Checksum failed for module {n_m}")
-    modules[n_m]
   print(f"Module {n_m}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
 
 def _decode_gbc(payload: bytes) -> None:
