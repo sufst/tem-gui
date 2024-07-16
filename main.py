@@ -24,12 +24,19 @@ from typing import List, Tuple
 import can # python-can
 import struct
 
+import logging
+
+# Get the logger for the 'can' module
+can_logger = logging.getLogger('can')
+
+# Set the logging level to WARNING to suppress TRACE and DEBUG messages
+can_logger.setLevel(logging.WARNING)
 
 
 init_done = Event()
 ui_done = Event()
 
-N_MODULES = 9
+N_MODULES = 10
 N_THERMISTORS_PER_MODULE = 24
 N_THERMISTORS = N_MODULES * N_THERMISTORS_PER_MODULE
 
@@ -124,7 +131,7 @@ def decode_data(data: bytes) -> None:
     # Extract the CAN ID (first 4 bytes)
     can_id = int.from_bytes(data[0:4], byteorder=BYTE_ORDER)
 
-    if (can_id >> 2) == (0x1838f380 >> 2):
+    if (can_id >> 4) == (0x1838f380 >> 4):
       _decode_bmsbc(data[4:])
     
     # match can_id:
@@ -136,7 +143,7 @@ def decode_data(data: bytes) -> None:
     #         print(f"Unknown CAN ID: {can_id}")
             
 def decode_can_data(can_id: bytes, data: bytes) -> None:
-  if (can_id >> 2) == (0x1838f380 >> 2):
+  if (can_id >> 4) == (0x1838f380 >> 4):
     #print(data[0], data[1], data[2], data[3])
     _decode_gbc(data)
   
@@ -284,7 +291,7 @@ def serial_thread_target():
     try:
       message = bus.recv(timeout=1.0)
       if message is not None:
-        print(message)
+        #print(message)
         decode_can_data(message.arbitration_id, message.data)
         
     except can.CanError as e:
