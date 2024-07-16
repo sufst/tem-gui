@@ -5,6 +5,7 @@ from kivy.graphics import Color, Rectangle
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import NumericProperty
+from kivy.properties import StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
@@ -36,19 +37,31 @@ can_logger.setLevel(logging.WARNING)
 init_done = Event()
 ui_done = Event()
 
-N_MODULES = 10
+N_MODULES = 9
 N_THERMISTORS_PER_MODULE = 24
 N_THERMISTORS = N_MODULES * N_THERMISTORS_PER_MODULE
 
-SERIAL_PORT_LINUX = "/dev/ttyUSB0"
-SERIAL_PORT_WINDOW = "COM1"
+dead_therms = [
+  [],
+  [3],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [],
+  []
+]
+
+SERIAL_PORT_LINUX = "/dev/ttyACM0"
+SERIAL_PORT_WINDOW = "COM0"
 SERIAL_PORT_MAC = ""
 
 SERIAL_BAUD_RATE = 115200
 
 BYTE_ORDER= "big"
 
-COLOR_GRADIENT = list(Color("white").range_to(Color("red"),100))
+COLOR_GRADIENT = list(Color("green").range_to(Color("red"),100))
 
 app_quit = False
 app_quit_lock = Lock()
@@ -73,7 +86,7 @@ class IDs:
 
 class Thermistor(EventDispatcher):
   temp = NumericProperty(0)
-  
+  ch = StringProperty("-")
   def __init__(self, n_m, n_t):
     self.n_module = n_m
     self.n_therm = n_t
@@ -89,6 +102,11 @@ class Thermistor(EventDispatcher):
     self.temp = new_temp_rounded
     self.min_temp = min(self.min_temp, new_temp_rounded)
     self.max_temp = max(self.max_temp, new_temp_rounded)
+
+    if self.ch == "-":
+      self.ch = "|"
+    else:
+      self.ch = "-"
     print(f"Temperature for thermistor {self.n_module}:{self.n_therm} was updated to {self.temp} °C")
 
   def get_temp_colour(self, value, min, max):
@@ -103,8 +121,12 @@ class Thermistor(EventDispatcher):
     self.max_temp = max(self.temp, self.max_temp)
     self.min_temp = min(self.temp, self.min_temp)
 
-    self.temp_label.text = str(self.temp) + "°C"
-    self.temp_label.color = self.get_temp_colour(self.temp, self.min_temp, self.max_temp)
+    if self.n_therm in dead_therms[self.n_module]:
+      self.temp_label.text = "N/A"
+      self.temp_label.color = Color("blue").get_rgb()
+    else:
+      self.temp_label.text = str(self.temp) + "°C " + self.ch
+      self.temp_label.color = self.get_temp_colour(self.temp, 10, 60)
 
 
     
@@ -123,41 +145,29 @@ class Module(EventDispatcher):
     self.label.text = f"[b]Module {self.n_module}[/b]\nMin: {self.min_temp}\nAvg: {self.avg_temp}\nMax:{self.max_temp}"
     
     
-#modules: List[Tuple[Lock, List[Thermistor]]] = []
 modules: List[Module] = []
 last_read_module: int
-
-def decode_data(data: bytes) -> None:
-    # Extract the CAN ID (first 4 bytes)
-    can_id = int.from_bytes(data[0:4], byteorder=BYTE_ORDER)
-
-    if (can_id >> 4) == (0x1838f380 >> 4):
-      _decode_bmsbc(data[4:])
-    
-    # match can_id:
-    #     case IDs.BMS_BC_ID:
-    #         _decode_bmsbc(data[4:])
-    #     case IDs.GENERAL_BC_ID:
-    #         _decode_gbc(data[4:])
-    #     case _:
-    #         print(f"Unknown CAN ID: {can_id}")
             
 def decode_can_data(can_id: bytes, data: bytes) -> None:
-  if (can_id >> 4) == (0x1838f380 >> 4):
-    #print(data[0], data[1], data[2], data[3])
+  if (can_id >> 4) == (IDs.GENERAL_BC_ID >> 4):
     _decode_gbc(data)
+  elif (can_id >> 4) == (IDs.BMS_BC_ID >> 4):
+    _decode_bmsbc(data)
+  else:
+    print(f"Unknown CAN ID: {can_id}")
   
 
 def _decode_bmsbc(payload: bytes) -> None:
+  # Extract values from payload
   n_m = int.from_bytes(payload[0:1], byteorder=BYTE_ORDER, signed=False)
   modules[n_m].min_temp = int.from_bytes(payload[1:2], byteorder=BYTE_ORDER, signed=True)
   modules[n_m].max_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
   modules[n_m].avg_temp = int.from_bytes(payload[3:4], byteorder=BYTE_ORDER, signed=True)
   # Check value with checksum
-  checksum = int.from_bytes(payload[7:8], byteorder=BYTE_ORDER, signed=False)
-  if checksum != (n_m + modules[n_m].min_temp + modules[n_m].max_temp + modules[n_m].avg_temp + 0x41) % 256: # 0x41 is a magic number?
-    print(f"Checksum failed for module {n_m}")
-  print(f"Module {n_m}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
+  #checksum = int.from_bytes(payload[7:8], byteorder=BYTE_ORDER, signed=False)
+  #if checksum != (n_m + modules[n_m].min_temp + modules[n_m].max_temp + modules[n_m].avg_temp + 0x41) % 256: # 0x41 is a magic number
+  #  print(f"Checksum failed for module {n_m}")
+  print(f"Module {n_m+1}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
 
 def _decode_gbc(payload: bytes) -> None:
   rel_id = int.from_bytes(payload[0:2], byteorder=BYTE_ORDER, signed=False)
@@ -169,8 +179,8 @@ def _decode_gbc(payload: bytes) -> None:
   new_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
   print(new_temp)
   
-  with modules[n_m].lock:
-    modules[n_m].thermistors[n_t].update_temp(float(new_temp))
+  with modules[n_m-1].lock:
+    modules[n_m-1].thermistors[n_t].update_temp(float(new_temp))
 
 class Start(Screen):
   pass
@@ -181,7 +191,7 @@ def init_thermistors():
     therm_list = []
     for n_t in range(N_THERMISTORS_PER_MODULE):
       therm_list.append(Thermistor(n_m, n_t))
-    modules.append(Module(n_m, therm_list))
+    modules.append(Module(n_m+1, therm_list))
   print("All thermistors initialised")
   reset_thermistors()
   
@@ -233,7 +243,8 @@ class MyApp(App):
           thermistor_layout = GridLayout(rows=1, spacing=0, orientation="tb-lr", padding=0)
           temp_label = Label(text="", halign="center", valign="center")
           modules[m].thermistors[t].temp_label = temp_label
-          modules[m].thermistors[t].bind(temp=modules[m].thermistors[t].temp_callback)
+          modules[m].thermistors[t].bind(temp=modules[m].thermistors[t].temp_callback,
+                                         ch=modules[m].thermistors[t].temp_callback)
           thermistor_layout.add_widget(temp_label)
           module_layout.add_widget(thermistor_layout)
       self.root_layout.add_widget(module_layout)
@@ -260,20 +271,21 @@ def serial_thread_target():
       for t in modules[n_m].thermistors:
         print(f"\t{t}")
         
-        
-  ############################################################################### python-CAN attempt at decoding
   try:
-    # if sys.platform.startswith('linux'):
-    #   bus = can.Bus(interface="serial", channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
-    # elif sys.platform.startswith('win32'):
-    #   bus = can.Bus(interface="serial", channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
-    # elif sys.platform.startswith('darwin'):
-    #   bus = can.Bus(interface="serial", channel=SERIAL_PORT_MAC, bitrate=SERIAL_BAUD_RATE)
-    # else:
-    #   print(f"Unrecognised platform: {sys.platform}")
-    #   set_therm_error()
-    #   return
-    bus = can.Bus(interface="socketcan", channel="can0")
+    if sys.platform.startswith('linux'):
+      #bus = can.interface.Bus(interface='slcan', channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
+      bus = can.Bus(interface="socketcan", channel="can0")
+    elif sys.platform.startswith('win32'):
+      bus = can.interface.Bus(interface='slcan', channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
+    elif sys.platform.startswith('darwin'):
+      print("Not implemented for MacOS")
+      set_therm_error()
+      return
+    else:
+      print(f"Unrecognised platform: {sys.platform}")
+      set_therm_error()
+      return
+    
   except can.CanInitializationError as e:
     print(f"An error occurred when opening the can bus: {e}")
     set_therm_error()
@@ -301,67 +313,8 @@ def serial_thread_target():
         
   bus.shutdown()
   print("CAN thread finished cleanly")
-  ###############################################################################
-        
-  ############################################################################### Serial Decode
-  # Serial loop
-  # sp: serial.Serial
   
-  # plat = sys.platform
-  
-  # try:
-  #   if plat.startswith('linux'):
-  #     sp = serial.Serial(SERIAL_PORT_LINUX, SERIAL_BAUD_RATE)
-  #   elif plat.startswith('win32'):
-  #     sp = serial.Serial(SERIAL_PORT_WINDOW, SERIAL_BAUD_RATE)
-  #   elif plat.startswith('darwin'):
-  #     sp = serial.Serial(SERIAL_PORT_MAC, SERIAL_BAUD_RATE)
-  #   else:
-  #     print(f"Unrecognised platform: {plat}")
-  #     set_therm_error()
-  #     return
-  # except serial.SerialException as e:
-  #   print(f"An error occurred when opening the serial port: {e}")
-  #   set_therm_error()
-  #   return
-  # except ValueError as e:
-  #   print(f"Invalid parameters for serial connection: {e}")
-  #   set_therm_error()
-  #   return
-  
-  # if(not sp.is_open()):
-  #   sp.open()
-  
-  # print("Serial port opened successfully")
-  
-  # while(sp.is_open() and not get_app_quit()):
-  #   decode_data(sp.readline())
-    
-  # sp.close()
-  ###############################################################################
-  
-  ############################################################################### Example Messages      
-  # _decode_gbc(example_gen_payload)
-  # _decode_bmsbc(example_bms_payload)
-  # return
-  ###############################################################################
-
-  ############################################################################### Random Values
-  # while(not get_app_quit()):
-  #   for n_m in range(N_MODULES):
-  #     can_data = generate_random_can_data(n_m)
-  #     decode_data(can_data)
-  #     # modules[n_m].min_temp = round(random.random() * random.randint(0,255), 2)
-  #     # modules[n_m].avg_temp = round(random.random() * random.randint(0,255), 2)
-  #     # modules[n_m].max_temp = round(random.random() * random.randint(0,255), 2)
-  #     # with modules[n_m].lock:
-  #     #   for t in modules[n_m].thermistors:
-  #     #     t.update_temp(round(random.random() * random.randint(0,255), 2))
-  #   sleep(0.1)
-  ###############################################################################
-          
-  # print("Serial thread finished cleanly")
-
+# For testing only, generates random CAN data, not currently in use
 def generate_random_can_data(n_m: int) -> bytes:
     # Randomly choose between BMS_BC_ID and GENERAL_BC_ID
     can_id = random.choice([IDs.BMS_BC_ID, IDs.GENERAL_BC_ID])
