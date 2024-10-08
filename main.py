@@ -5,6 +5,7 @@ from kivy.graphics import Color, Rectangle
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import NumericProperty
+from kivy.properties import StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
@@ -21,6 +22,16 @@ import sys
 from threading import Thread, Lock, Event
 from time import sleep
 from typing import List, Tuple
+import can # python-can
+import struct
+
+import logging
+
+# Get the logger for the 'can' module
+can_logger = logging.getLogger('can')
+
+# Set the logging level to WARNING to suppress TRACE and DEBUG messages
+can_logger.setLevel(logging.WARNING)
 
 
 init_done = Event()
@@ -30,15 +41,27 @@ N_MODULES = 9
 N_THERMISTORS_PER_MODULE = 24
 N_THERMISTORS = N_MODULES * N_THERMISTORS_PER_MODULE
 
+dead_therms = [
+  [],
+  [3],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [],
+  []
+]
+
 SERIAL_PORT_LINUX = "/dev/ttyACM0"
-SERIAL_PORT_WINDOW = "COM1"
+SERIAL_PORT_WINDOW = "COM0"
 SERIAL_PORT_MAC = ""
 
 SERIAL_BAUD_RATE = 115200
 
 BYTE_ORDER= "big"
 
-COLOR_GRADIENT = list(Color("white").range_to(Color("red"),100))
+COLOR_GRADIENT = list(Color("green").range_to(Color("red"),100))
 
 app_quit = False
 app_quit_lock = Lock()
@@ -57,13 +80,13 @@ def set_app_quit(b):
 
 @dataclass
 class IDs:
-  BMS_BC_ID: int = 406451072 # int("1839F380", 16)
-  GENERAL_BC_ID: int = 406385536 # int("1838F380", 16)
+  BMS_BC_ID: int = int("1839F380", 16)
+  GENERAL_BC_ID: int = int("1838F380", 16)
 
 
 class Thermistor(EventDispatcher):
   temp = NumericProperty(0)
-  
+  ch = StringProperty("-")
   def __init__(self, n_m, n_t):
     self.n_module = n_m
     self.n_therm = n_t
@@ -79,6 +102,11 @@ class Thermistor(EventDispatcher):
     self.temp = new_temp_rounded
     self.min_temp = min(self.min_temp, new_temp_rounded)
     self.max_temp = max(self.max_temp, new_temp_rounded)
+
+    if self.ch == "-":
+      self.ch = "|"
+    else:
+      self.ch = "-"
     print(f"Temperature for thermistor {self.n_module}:{self.n_therm} was updated to {self.temp} °C")
 
   def get_temp_colour(self, value, min, max):
@@ -93,8 +121,12 @@ class Thermistor(EventDispatcher):
     self.max_temp = max(self.temp, self.max_temp)
     self.min_temp = min(self.temp, self.min_temp)
 
-    self.temp_label.text = str(self.temp) + "°C"
-    self.temp_label.color = self.get_temp_colour(self.temp, self.min_temp, self.max_temp)
+    if self.n_therm in dead_therms[self.n_module]:
+      self.temp_label.text = "N/A"
+      self.temp_label.color = Color("blue").get_rgb()
+    else:
+      self.temp_label.text = str(self.temp) + "°C " + self.ch
+      self.temp_label.color = self.get_temp_colour(self.temp, 10, 60)
 
 
     
@@ -113,45 +145,42 @@ class Module(EventDispatcher):
     self.label.text = f"[b]Module {self.n_module}[/b]\nMin: {self.min_temp}\nAvg: {self.avg_temp}\nMax:{self.max_temp}"
     
     
-#modules: List[Tuple[Lock, List[Thermistor]]] = []
 modules: List[Module] = []
 last_read_module: int
-
-def decode_data(data: bytes) -> None:
-  # This probably won't run. I am writing it directly in GH :(
-  # Endianess
-
-  # 4 byte ID
-  id = data[0:4]
-
-  match(int.from_bytes(id, byteorder=BYTE_ORDER, signed=False)):
-    case IDs.BMS_BC_ID:
-      _decode_bmsbc(data[4:]) #? Does this work? Who knows
-    case IDs.GENERAL_BC_ID:
-      _decode_gbc(data[4:]) #?
-    case _:
-      pass # Not a TEM message
+            
+def decode_can_data(can_id: bytes, data: bytes) -> None:
+  if (can_id >> 4) == (IDs.GENERAL_BC_ID >> 4):
+    _decode_gbc(data)
+  elif (can_id >> 4) == (IDs.BMS_BC_ID >> 4):
+    _decode_bmsbc(data)
+  else:
+    print(f"Unknown CAN ID: {can_id}")
   
 
 def _decode_bmsbc(payload: bytes) -> None:
+  # Extract values from payload
   n_m = int.from_bytes(payload[0:1], byteorder=BYTE_ORDER, signed=False)
   modules[n_m].min_temp = int.from_bytes(payload[1:2], byteorder=BYTE_ORDER, signed=True)
   modules[n_m].max_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
   modules[n_m].avg_temp = int.from_bytes(payload[3:4], byteorder=BYTE_ORDER, signed=True)
-  print(f"Module {n_m}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
+  # Check value with checksum
+  #checksum = int.from_bytes(payload[7:8], byteorder=BYTE_ORDER, signed=False)
+  #if checksum != (n_m + modules[n_m].min_temp + modules[n_m].max_temp + modules[n_m].avg_temp + 0x41) % 256: # 0x41 is a magic number
+  #  print(f"Checksum failed for module {n_m}")
+  print(f"Module {n_m+1}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
 
 def _decode_gbc(payload: bytes) -> None:
   rel_id = int.from_bytes(payload[0:2], byteorder=BYTE_ORDER, signed=False)
   print(rel_id)
-  n_m = math.floor(rel_id / N_THERMISTORS_PER_MODULE)
+  n_m = math.floor(rel_id / 80)
   print(n_m)
-  n_t = rel_id % N_THERMISTORS_PER_MODULE
+  n_t = rel_id % 80
   print(n_t)
   new_temp = int.from_bytes(payload[2:3], byteorder=BYTE_ORDER, signed=True)
   print(new_temp)
   
-  with modules[n_m].lock:
-    modules[n_m].thermistors[n_t].update_temp(float(new_temp))
+  with modules[n_m-1].lock:
+    modules[n_m-1].thermistors[n_t].update_temp(float(new_temp))
 
 class Start(Screen):
   pass
@@ -162,7 +191,7 @@ def init_thermistors():
     therm_list = []
     for n_t in range(N_THERMISTORS_PER_MODULE):
       therm_list.append(Thermistor(n_m, n_t))
-    modules.append(Module(n_m, therm_list))
+    modules.append(Module(n_m+1, therm_list))
   print("All thermistors initialised")
   reset_thermistors()
   
@@ -214,7 +243,8 @@ class MyApp(App):
           thermistor_layout = GridLayout(rows=1, spacing=0, orientation="tb-lr", padding=0)
           temp_label = Label(text="", halign="center", valign="center")
           modules[m].thermistors[t].temp_label = temp_label
-          modules[m].thermistors[t].bind(temp=modules[m].thermistors[t].temp_callback)
+          modules[m].thermistors[t].bind(temp=modules[m].thermistors[t].temp_callback,
+                                         ch=modules[m].thermistors[t].temp_callback)
           thermistor_layout.add_widget(temp_label)
           module_layout.add_widget(thermistor_layout)
       self.root_layout.add_widget(module_layout)
@@ -241,62 +271,79 @@ def serial_thread_target():
       for t in modules[n_m].thermistors:
         print(f"\t{t}")
         
-  ############################################################################### Serial Decode
-  # Serial loop
-  # sp: serial.Serial
-  
-  # plat = sys.platform
-  
-  # try:
-  #   if plat.startswith('linux'):
-  #     sp = serial.Serial(SERIAL_PORT_LINUX, SERIAL_BAUD_RATE)
-  #   elif plat.startswith('win32'):
-  #     sp = serial.Serial(SERIAL_PORT_WINDOW, SERIAL_BAUD_RATE)
-  #   elif plat.startswith('darwin'):
-  #     sp = serial.Serial(SERIAL_PORT_MAC, SERIAL_BAUD_RATE)
-  #   else:
-  #     print(f"Unrecognised platform: {plat}")
-  #     set_therm_error()
-  #     return
-  # except serial.SerialException as e:
-  #   print(f"An error occurred when opening the serial port: {e}")
-  #   set_therm_error()
-  #   return
-  # except ValueError as e:
-  #   print(f"Invalid parameters for serial connection: {e}")
-  #   set_therm_error()
-  #   return
-  
-  # if(not sp.is_open()):
-  #   sp.open()
-  
-  # print("Serial port opened successfully")
-  
-  # while(sp.is_open() and not get_app_quit()):
-  #   decode_data(sp.readline())
+  try:
+    if sys.platform.startswith('linux'):
+      #bus = can.interface.Bus(interface='slcan', channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
+      bus = can.Bus(interface="socketcan", channel="can0")
+    elif sys.platform.startswith('win32'):
+      bus = can.interface.Bus(interface='slcan', channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
+    elif sys.platform.startswith('darwin'):
+      print("Not implemented for MacOS")
+      set_therm_error()
+      return
+    else:
+      print(f"Unrecognised platform: {sys.platform}")
+      set_therm_error()
+      return
     
-  # sp.close()
-  ###############################################################################
-  
-  ############################################################################### Example Messages      
-  # _decode_gbc(example_gen_payload)
-  # _decode_bmsbc(example_bms_payload)
-  # return
-  ###############################################################################
-
-  ############################################################################### Random Values
+  except can.CanInitializationError as e:
+    print(f"An error occurred when opening the can bus: {e}")
+    set_therm_error()
+    return
+  except serial.SerialException as e:
+    print(f"An error occurred when opening the serial port: {e}")
+    set_therm_error()
+    return
+  except ValueError as e:
+    print(f"Invalid parameters for can bus: {e}")
+    set_therm_error()
+    return
+    
   while(not get_app_quit()):
-    for n_m in range(N_MODULES):
-      modules[n_m].min_temp = round(random.random() * random.randint(0,255), 2)
-      modules[n_m].avg_temp = round(random.random() * random.randint(0,255), 2)
-      modules[n_m].max_temp = round(random.random() * random.randint(0,255), 2)
-      with modules[n_m].lock:
-        for t in modules[n_m].thermistors:
-          t.update_temp(round(random.random() * random.randint(0,255), 2))
-    sleep(1)
-  ###############################################################################
-          
-  print("Serial thread finished cleanly")
+    try:
+      message = bus.recv(timeout=1.0)
+      if message is not None:
+        #print(message)
+        decode_can_data(message.arbitration_id, message.data)
+        
+    except can.CanError as e:
+          print(f"CAN error: {e}")
+          set_therm_error()
+          break
+        
+  bus.shutdown()
+  print("CAN thread finished cleanly")
+  
+# For testing only, generates random CAN data, not currently in use
+def generate_random_can_data(n_m: int) -> bytes:
+    # Randomly choose between BMS_BC_ID and GENERAL_BC_ID
+    can_id = random.choice([IDs.BMS_BC_ID, IDs.GENERAL_BC_ID])
+    
+    if can_id == IDs.BMS_BC_ID:
+        min_temp = random.randint(-20, 80)
+        max_temp = random.randint(min_temp, 80)
+        avg_temp = random.randint(min_temp, max_temp)
+        num_thermistors = random.randint(1, N_THERMISTORS_PER_MODULE)
+        highest_therm_id = random.randint(0, N_THERMISTORS_PER_MODULE - 1)
+        lowest_therm_id = random.randint(0, highest_therm_id)
+        checksum = (n_m + min_temp + max_temp + avg_temp + num_thermistors + 
+                    highest_therm_id + lowest_therm_id) % 256
+        # Match module message byte pattern
+        payload = struct.pack('>BbbbBBBB', n_m, min_temp, max_temp, avg_temp,
+                              num_thermistors, highest_therm_id, lowest_therm_id, checksum)
+    else:  # GENERAL_BC_ID
+        therm_id = random.randint(0, N_THERMISTORS - 1)
+        temp = random.randint(-20, 80)
+        num_thermistors = random.randint(1, N_THERMISTORS)
+        min_temp = random.randint(-20, temp)
+        max_temp = random.randint(temp, 80)
+        highest_therm_id = random.randint(0, N_THERMISTORS_PER_MODULE - 1)
+        lowest_therm_id = random.randint(0, highest_therm_id)
+        # Match general message byte pattern
+        payload = struct.pack('>HbBbbBB', therm_id, temp, num_thermistors, min_temp,
+                              max_temp, highest_therm_id, lowest_therm_id)
+    
+    return can_id.to_bytes(4, byteorder=BYTE_ORDER) + payload
 
 if __name__ == '__main__':
   app = MyApp()
