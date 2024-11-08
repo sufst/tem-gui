@@ -76,9 +76,9 @@ class Thermistor(EventDispatcher):
     """
     if max_val - min_val != 0:
       proportion = (value - min_val) / (max_val - min_val)
-      print(f'Proportion: {proportion}, min: {min_val}, max: {max_val}, current: {value}')
+      # print(f'Proportion: {proportion}, min: {min_val}, max: {max_val}, current: {value}')
       index = math.floor(proportion * (len(COLOR_GRADIENT) - 1))
-      print(f'Colour index: {index}, min: {self.min_temp}, max: {self.max_temp}, current: {self.temp}')
+      # print(f'Colour index: {index}, min: {self.min_temp}, max: {self.max_temp}, current: {self.temp}')
       index = max((0, index))
       index = min(index, 99)
       colour = COLOR_GRADIENT[index].get_rgb() + (1,)

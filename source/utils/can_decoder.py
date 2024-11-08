@@ -41,7 +41,7 @@ def _decode_bmsbc(payload: bytes, modules: List[Module]) -> None:
   #checksum = int.from_bytes(payload[7:8], byteorder=BYTE_ORDER, signed=False)
   #if checksum != (module_id + modules[module_id].min_temp + modules[module_id].max_temp + modules[module_id].avg_temp + 0x41) % 256: # 0x41 is a magic number
   #  print(f"Checksum failed for module {module_id}")
-  print(f"Module {module_id+1}\n\tMin: {modules[module_id].min_temp} °C\n\tAvg: {modules[module_id].avg_temp} °C\n\tMax: {modules[module_id].max_temp} °C")
+  # print(f"Module {module_id+1}\n\tMin: {modules[module_id].min_temp} °C\n\tAvg: {modules[module_id].avg_temp} °C\n\tMax: {modules[module_id].max_temp} °C")
 
 def _decode_gbc(payload: bytes, modules: List[Module]) -> None:
   """Decode the General Broadcast message
@@ -57,7 +57,7 @@ def _decode_gbc(payload: bytes, modules: List[Module]) -> None:
   number_of_thermistors = int.from_bytes(payload[3:4], byteorder=BYTE_ORDER, signed=False)
 
   with modules[module_id-1].lock:
-    print(f'Thermistors length: {len(modules[module_id-1].thermistors)}')
-    print(f'Modules length: {len(modules)}')
+    # print(f'Thermistors length: {len(modules[module_id-1].thermistors)}')
+    # print(f'Modules length: {len(modules)}')
     modules[module_id-1].number_of_thermistors = number_of_thermistors
     modules[module_id-1].thermistors[therm_id].update_temp(new_temp)

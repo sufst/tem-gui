@@ -33,6 +33,7 @@ from components.Thermistor import Thermistor
 from utils.randomiser import generate_random_can_data
 from utils.constants import *
 from utils.can_decoder import decode_can_data
+from utils.data_logger import DataLogger
 
 # Get the logger for the 'can' module
 can_logger = logging.getLogger('can')
@@ -43,7 +44,7 @@ can_logger.setLevel(logging.WARNING)
 # App execution mode flag
 # Set to True to generate random data for testing
 # Set to False to read data from the CAN bus
-RANDOM_DATA_DEFINITION = False
+RANDOM_DATA_DEFINITION = True
 
 init_done = Event()
 ui_done = Event()
@@ -183,7 +184,7 @@ def serial_thread_target():
 
       decode_can_data(can_id, payload, modules)
 
-      sleep(0.1)
+      sleep(0.01)
     else:
       try:
         message = bus.recv(timeout=1.0)
@@ -203,12 +204,17 @@ def serial_thread_target():
 
 if __name__ == '__main__':
   app = MyApp()
+  data = DataLogger("csv")
 
   serial_thread = Thread(target=serial_thread_target)
+  logger_thread = Thread(target=data.logging_thread, args=(modules, get_app_quit))
+
   serial_thread.start()
+  logger_thread.start()
 
   app.run()
 
   set_app_quit(True)
 
   serial_thread.join()
+  logger_thread.join()

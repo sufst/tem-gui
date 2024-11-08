@@ -35,7 +35,7 @@ def generate_random_can_data(module_id: int, modules: List[Module]) -> bytes:
     sum_temp = 0
     for i in range(len(modules[module_id].thermistors)):
       thermistor = modules[module_id].thermistors[i]
-      print(f'Thermistor {i} temp: {thermistor.temp}')
+      # print(f'Thermistor {i} temp: {thermistor.temp}')
       sum_temp += thermistor.temp
       if thermistor.temp < min_temp:
         min_temp = thermistor.temp
@@ -48,7 +48,7 @@ def generate_random_can_data(module_id: int, modules: List[Module]) -> bytes:
 
     checksum = (module_id + min_temp + max_temp + avg_temp + num_thermistors +
                 highest_therm_id + lowest_therm_id) % 256
-    print(f'Module ID: {module_id} Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')
+    # print(f'Module ID: {module_id} Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')
     # Match module message byte pattern
     payload = struct.pack('>BbbbBBBB', module_id, min_temp, max_temp, avg_temp,
                             num_thermistors, highest_therm_id, lowest_therm_id, checksum)
@@ -60,7 +60,7 @@ def generate_random_can_data(module_id: int, modules: List[Module]) -> bytes:
       max_temp = random.randint(temp, MAX_TEMP)
       highest_therm_id = random.randint(0, N_THERMISTORS_PER_MODULE - 1)
       lowest_therm_id = random.randint(0, highest_therm_id)
-      print(f'ID: {therm_id}|Temperature: {temp}|Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')
+      # print(f'ID: {therm_id}|Temperature: {temp}|Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')
       # Match general message byte pattern
       payload = struct.pack('>HbBbbBB', therm_id, temp, num_thermistors, min_temp,
                             max_temp, highest_therm_id, lowest_therm_id)
