@@ -6,7 +6,7 @@ from kivy.properties import NumericProperty
 import math
 from colour import Color
 
-from utils.constants import COLOR_GRADIENT
+from utils.constants import COLOR_GRADIENT, MIN_TEMP, MAX_TEMP
 
 
 # Hard-code currently dead thermistors
@@ -94,4 +94,4 @@ class Thermistor(EventDispatcher):
       self.temp_label.color = Color("blue").get_rgb()
     else:
       self.temp_label.text = str(self.temp) + "°C "
-      self.temp_label.color = self.get_temp_colour(self.temp, 10, 60)
+      self.temp_label.color = self.get_temp_colour(self.temp, MIN_TEMP, MAX_TEMP)

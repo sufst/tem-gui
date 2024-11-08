@@ -14,7 +14,6 @@ Example:
 """
 
 from kivy.app import App
-from kivy.graphics import Rectangle
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
@@ -204,12 +203,12 @@ def serial_thread_target():
 
 if __name__ == '__main__':
   app = MyApp()
-  
+
   serial_thread = Thread(target=serial_thread_target)
   serial_thread.start()
-  
+
   app.run()
-  
+
   set_app_quit(True)
-  
+
   serial_thread.join()

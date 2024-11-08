@@ -9,7 +9,7 @@ import random
 import struct
 
 from components.Module import Module
-from utils.constants import N_THERMISTORS_PER_MODULE, BYTE_ORDER, IDs
+from utils.constants import N_THERMISTORS_PER_MODULE, BYTE_ORDER, IDs, MIN_TEMP, MAX_TEMP
 
 
 def generate_random_can_data(module_id: int, modules: List[Module]) -> bytes:
@@ -29,8 +29,8 @@ def generate_random_can_data(module_id: int, modules: List[Module]) -> bytes:
   can_id = random.choice([IDs.BMS_BC_ID, IDs.GENERAL_BC_ID])
 
   if can_id == IDs.BMS_BC_ID:
-    min_temp = 80
-    max_temp = -20
+    min_temp = MAX_TEMP
+    max_temp = MIN_TEMP
     lowest_therm_id, highest_therm_id = 0,0
     sum_temp = 0
     for i in range(len(modules[module_id].thermistors)):
@@ -55,9 +55,9 @@ def generate_random_can_data(module_id: int, modules: List[Module]) -> bytes:
   else:  # GENERAL_BC_ID
       num_thermistors = random.randint(1, N_THERMISTORS_PER_MODULE)
       therm_id = (module_id+1) * 80 + random.randint(0, num_thermistors - 1)
-      temp = random.randint(-20, 80)
-      min_temp = random.randint(-20, temp)
-      max_temp = random.randint(temp, 80)
+      temp = random.randint(MIN_TEMP, MAX_TEMP)
+      min_temp = random.randint(MIN_TEMP, temp)
+      max_temp = random.randint(temp, MAX_TEMP)
       highest_therm_id = random.randint(0, N_THERMISTORS_PER_MODULE - 1)
       lowest_therm_id = random.randint(0, highest_therm_id)
       print(f'ID: {therm_id}|Temperature: {temp}|Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')

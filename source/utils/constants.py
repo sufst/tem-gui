@@ -18,6 +18,8 @@ SERIAL_BAUD_RATE = 115200   # Baud rate for serial communication
 BYTE_ORDER= "big"           # Byte order for serial communication
 
 COLOR_GRADIENT = list(Color("green").range_to(Color("red"),100))  # Colour gradient for temperature display
+MIN_TEMP = -20              # Minimum temperature for the system
+MAX_TEMP = 80               # Maximum temperature for the system
 
 @dataclass
 class IDs:

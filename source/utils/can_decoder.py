@@ -24,7 +24,6 @@ def decode_can_data(can_id: bytes, data: bytes, modules: List[Module]) -> None:
     _decode_bmsbc(data, modules)
   else:
     print(f"Unknown CAN ID: {can_id}")
-  
 
 def _decode_bmsbc(payload: bytes, modules: List[Module]) -> None:
   """Decode the BMS Broadcast message
@@ -43,7 +42,6 @@ def _decode_bmsbc(payload: bytes, modules: List[Module]) -> None:
   #if checksum != (module_id + modules[module_id].min_temp + modules[module_id].max_temp + modules[module_id].avg_temp + 0x41) % 256: # 0x41 is a magic number
   #  print(f"Checksum failed for module {module_id}")
   print(f"Module {module_id+1}\n\tMin: {modules[module_id].min_temp} °C\n\tAvg: {modules[module_id].avg_temp} °C\n\tMax: {modules[module_id].max_temp} °C")
-
 
 def _decode_gbc(payload: bytes, modules: List[Module]) -> None:
   """Decode the General Broadcast message
