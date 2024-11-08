@@ -1,7 +1,6 @@
 from typing import List
 from time import sleep, time
 from datetime import datetime
-from threading import Thread
 from utils.file_writer import write_csv_file
 from utils.constants import MODULE_CSV_FORMAT, THERMISTOR_CSV_FORMAT, MODULE_CSV_ENDING, THERMISTOR_CSV_ENDING, LOGGING_INTERVAL, LOGGING_START
 
@@ -29,6 +28,6 @@ class DataLogger:
     if self.type == "csv":
       print("Writing to CSV files")
       write_csv_file(self.moduleData, self.path_identifier + MODULE_CSV_ENDING)
-      write_csv_file(self.thermistorData, self.path_identifier + THERMISTOR_CSV_ENDING)
+      write_csv_file(self.thermistorData,self.path_identifier + THERMISTOR_CSV_ENDING)
     else:
       print("Unknown type")

@@ -24,7 +24,8 @@ MAX_TEMP = 80               # Maximum temperature for the system
 MODULE_CSV_FORMAT = ["Module ID", "Min Temp", "Max Temp", "Avg Temp", "Number of Thermistors", "Timestamp"]   # CSV format for module data
 THERMISTOR_CSV_FORMAT = ["Module ID", "Thermistor ID", "Temperature", "Timestamp"]                            # CSV format for thermistor data
 MODULE_CSV_ENDING = "_modules.csv"            # Ending for module CSV files
-THERMISTOR_CSV_ENDING = "_thermistors.csv"   # Ending for thermistor CSV files
+THERMISTOR_CSV_ENDING = "_thermistors.csv"    # Ending for thermistor CSV files
+LOG_FOLDER = "logs"                           # Folder for log files
 LOGGING_START = 1           # Start logging at this time in seconds from the start
 LOGGING_INTERVAL = 5        # Logging interval in seconds
 
