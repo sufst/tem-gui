@@ -44,11 +44,10 @@ can_logger.setLevel(logging.WARNING)
 # App execution mode flag
 # Set to True to generate random data for testing
 # Set to False to read data from the CAN bus
-RANDOM_DATA_DEFINITION = True
+RANDOM_DATA_DEFINITION = False
 
 init_done = Event()
 ui_done = Event()
-
 
 app_quit = False
 app_quit_lock = Lock()
@@ -80,7 +79,7 @@ def init_thermistors():
     modules.append(Module(module_id+1, therm_list))
   print("All thermistors initialised")
   reset_thermistors()
-  
+
 def reset_thermistors():
   global modules
   for m in modules:
@@ -89,11 +88,11 @@ def reset_thermistors():
         t.update_temp(0.0)
   print("All thermistors reset")
 
-def add_border(widget, colour=(1, 0, 0, 1), thickness=1): #! Doesn't work
-    with widget.canvas.before:
-        Color(colour)
-        Rectangle(pos=widget.pos, size=widget.size, width=thickness)
-    return widget
+def set_therm_error():
+  for module_id in range(N_MODULES):
+    with modules[module_id].lock:
+      for t in modules[module_id].thermistors:
+        t.update_temp(sys.float_info.min_exp)
 
 class MyApp(App):
   def build(self):
@@ -134,12 +133,6 @@ class MyApp(App):
     ui_done.set()
     # self.root.add_widget(self.layout)
     return self.root_layout
-  
-def set_therm_error():
-  for module_id in range(N_MODULES):
-    with modules[module_id].lock:
-      for t in modules[module_id].thermistors:
-        t.update_temp(sys.float_info.min_exp)
 
 def serial_thread_target():
   init_thermistors()
