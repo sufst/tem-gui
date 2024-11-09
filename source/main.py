@@ -3,9 +3,6 @@
 This module contains the main application class and the serial thread target function.
 The serial thread target function reads data from the CAN bus and updates the GUI with the temperature values.
 
-Author: Dmytro Avdieienko | @Avdieieinko
-Author: Joe Pater         | @JoePater
-
 Example:
   To run the application, simply run the module:
 
