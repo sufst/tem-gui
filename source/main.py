@@ -42,9 +42,8 @@ can_logger = logging.getLogger('can')
 can_logger.setLevel(logging.WARNING)
 
 # App execution mode flag
-# Set to True to generate random data for testing
-# Set to False to read data from the CAN bus
-RANDOM_DATA_DEFINITION = True
+RANDOM_DATA_DEFINITION = True   # Set to True to generate random data; False to read data from the CAN bus
+ENABLE_LOGGING = True           # Set to True to enable loggings
 
 init_done = Event()
 ui_done = Event()
@@ -210,11 +209,13 @@ if __name__ == '__main__':
   logger_thread = Thread(target=data.logging_thread, args=(modules, get_app_quit))
 
   serial_thread.start()
-  logger_thread.start()
+  if ENABLE_LOGGING:
+    logger_thread.start()
 
   app.run()
 
   set_app_quit(True)
 
   serial_thread.join()
-  logger_thread.join()
+  if ENABLE_LOGGING:
+    logger_thread.join()

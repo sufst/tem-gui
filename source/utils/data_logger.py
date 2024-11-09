@@ -3,7 +3,9 @@
 from typing import List
 from time import sleep, time
 from datetime import datetime
+import math
 
+from components.Module import Module
 from utils.file_writer import write_csv_file
 from utils.constants import MODULE_CSV_FORMAT, THERMISTOR_CSV_FORMAT, MODULE_CSV_ENDING, THERMISTOR_CSV_ENDING, LOGGING_INTERVAL, LOGGING_START
 
@@ -31,18 +33,21 @@ class DataLogger:
     """
     self.type = type
 
-  def logging_thread(self, modules, get_app_quit):
+  def logging_thread(self, modules: List[Module], get_app_quit: callable):
     """The logging thread function.
 
     Args:
-        modules (_type_): Modules to log data from.
-        get_app_quit (_type_): Function to get the app quit status. Go to the main.py file to see the implementation.
+        modules (List[Module]): Modules to log data from.
+        get_app_quit (callable): Function to get the app quit status. Go to the main.py file to see the implementation.
     """
     start = time()
+    time_diff = 0
     while(not get_app_quit()):
       sleep(0.5)
       cur_time = time()
-      time_diff = int(cur_time - start)
+      if time_diff == math.floor(cur_time - start):
+        continue
+      time_diff = math.floor(cur_time - start)
       if (time_diff != 0 and time_diff % LOGGING_INTERVAL == 0) or time_diff == LOGGING_START:
         for module in modules:
           self.moduleData.append([module.module_id, module.min_temp, module.max_temp, module.avg_temp, module.number_of_thermistors, time_diff])
