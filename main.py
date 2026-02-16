@@ -33,7 +33,7 @@ can_logger = logging.getLogger('can')
 # Set the logging level to WARNING to suppress TRACE and DEBUG messages
 can_logger.setLevel(logging.WARNING)
 
-RANDOM_DATA_DEFINITION = True
+RANDOM_DATA_DEFINITION = False
 
 init_done = Event()
 ui_done = Event()
@@ -56,10 +56,10 @@ dead_therms = [
 ]
 
 SERIAL_PORT_LINUX = "/dev/ttyACM0"
-SERIAL_PORT_WINDOW = "COM0"
+SERIAL_PORT_WINDOW = "COM7"
 SERIAL_PORT_MAC = ""
 
-SERIAL_BAUD_RATE = 115200
+SERIAL_BAUD_RATE = 500000
 
 BYTE_ORDER= "big"
 
@@ -108,14 +108,17 @@ class Thermistor(EventDispatcher):
       self.ch = "|"
     else:
       self.ch = "-"
-    print(f"Temperature for thermistor {self.n_module}:{self.n_therm} was updated to {self.temp} °C")
+    pass
+    #print(f"Temperature for thermistor {self.n_module}:{self.n_therm} was updated to {self.temp} °C")
 
   def get_temp_colour(self, value, min_v, max_v):
     if max_v - min_v != 0:
       proportion = (value - min_v) / (max_v - min_v)
-      print(f'Proportion: {proportion}, min: {min_v}, max: {max_v}, current: {value}')
+      pass
+      #print(f'Proportion: {proportion}, min: {min_v}, max: {max_v}, current: {value}')
       index = math.floor(proportion * (len(COLOR_GRADIENT) - 1))
-      print(f'Colour index: {index}, min: {self.min_temp}, max: {self.max_temp}, current: {self.temp}')
+      pass
+      #print(f'Colour index: {index}, min: {self.min_temp}, max: {self.max_temp}, current: {self.temp}')
       index = max((0, index))
       index = min(index, 99)
       colour = COLOR_GRADIENT[index].get_rgb() + (1,)
@@ -159,7 +162,8 @@ def decode_can_data(can_id: bytes, data: bytes) -> None:
   elif (can_id >> 4) == (IDs.BMS_BC_ID >> 4):
     _decode_bmsbc(data)
   else:
-    print(f"Unknown CAN ID: {can_id}")
+    pass
+    #print(f"Unknown CAN ID: {can_id}")
   
 
 def _decode_bmsbc(payload: bytes) -> None:
@@ -171,8 +175,10 @@ def _decode_bmsbc(payload: bytes) -> None:
   # Check value with checksum
   #checksum = int.from_bytes(payload[7:8], byteorder=BYTE_ORDER, signed=False)
   #if checksum != (n_m + modules[n_m].min_temp + modules[n_m].max_temp + modules[n_m].avg_temp + 0x41) % 256: # 0x41 is a magic number
-  #  print(f"Checksum failed for module {n_m}")
-  print(f"Module {n_m+1}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
+  pass#  
+  #print(f"Checksum failed for module {n_m}")
+  pass
+  #print(f"Module {n_m+1}\n\tMin: {modules[n_m].min_temp} °C\n\tAvg: {modules[n_m].avg_temp} °C\n\tMax: {modules[n_m].max_temp} °C")
 
 
 def _decode_gbc(payload: bytes) -> None:
@@ -184,8 +190,10 @@ def _decode_gbc(payload: bytes) -> None:
 
   
   with modules[n_m-1].lock:
-    print(f'Thermistors length: {len(modules[n_m-1].thermistors)}')
-    print(f'Modules length: {len(modules)}')
+    pass
+    #print(f'Thermistors length: {len(modules[n_m-1].thermistors)}')
+    pass
+    #print(f'Modules length: {len(modules)}')
     modules[n_m-1].number_of_thermistors = number_of_thermistors
     modules[n_m-1].thermistors[n_t].update_temp(new_temp)
 
@@ -199,7 +207,8 @@ def init_thermistors():
     for n_t in range(N_THERMISTORS_PER_MODULE):
       therm_list.append(Thermistor(n_m, n_t))
     modules.append(Module(n_m+1, therm_list))
-  print("All thermistors initialised")
+  pass
+  #print("All thermistors initialised")
   reset_thermistors()
   
 def reset_thermistors():
@@ -208,7 +217,8 @@ def reset_thermistors():
     with m.lock:
       for t in m.thermistors:
         t.update_temp(0.0)
-  print("All thermistors reset")
+  pass
+  #print("All thermistors reset")
 
 def add_border(widget, colour=(1, 0, 0, 1), thickness=1): #! Doesn't work
     with widget.canvas.before:
@@ -274,35 +284,49 @@ def serial_thread_target():
   
   for n_m in range(N_MODULES):
     with modules[n_m].lock:
-      print(f"Module {n_m}")
-      print(f"Thermistors: {len(modules[n_m].thermistors)}")
+      pass
+      #print(f"Module {n_m}")
+      pass
+      #print(f"Thermistors: {len(modules[n_m].thermistors)}")
       for t in modules[n_m].thermistors:
-        print(f"\t{t}")
+        pass
+        #print(f"\t{t}")
   if not RANDOM_DATA_DEFINITION:
+    pass
+    print("Banana1")
     try:
       if sys.platform.startswith('linux'):
         #bus = can.interface.Bus(interface='slcan', channel=SERIAL_PORT_LINUX, bitrate=SERIAL_BAUD_RATE)
         bus = can.Bus(interface="socketcan", channel="can0")
       elif sys.platform.startswith('win32'):
-        bus = can.interface.Bus(interface='slcan', channel=SERIAL_PORT_WINDOW, bitrate=SERIAL_BAUD_RATE)
+        pass
+        print("Banana2")
+        bus = can.interface.Bus(interface='slcan', channel=SERIAL_PORT_WINDOW)
+        pass
+        print("Tada")
       elif sys.platform.startswith('darwin'):
+        pass
         print("Not implemented for MacOS")
         set_therm_error()
         return
       else:
+        pass
         print(f"Unrecognised platform: {sys.platform}")
         set_therm_error()
         return
       
     except can.CanInitializationError as e:
+      pass
       print(f"An error occurred when opening the can bus: {e}")
       set_therm_error()
       return
     except serial.SerialException as e:
+      pass
       print(f"An error occurred when opening the serial port: {e}")
       set_therm_error()
       return
     except ValueError as e:
+      pass
       print(f"Invalid parameters for can bus: {e}")
       set_therm_error()
       return
@@ -322,16 +346,19 @@ def serial_thread_target():
         message = bus.recv(timeout=1.0)
 
         if message is not None:
+          pass#
           #print(message)
           decode_can_data(message.arbitration_id, message.data)
           
       except can.CanError as e:
-            print(f"CAN error: {e}")
+            pass
+            #print(f"CAN error: {e}")
             set_therm_error()
             break
           
-      bus.shutdown()
-  print("CAN thread finished cleanly")
+  bus.shutdown()
+  pass
+  #print("CAN thread finished cleanly")
   
 # For testing only, generates random CAN data, not currently in use
 def generate_random_can_data(n_m: int) -> bytes:
@@ -347,7 +374,8 @@ def generate_random_can_data(n_m: int) -> bytes:
       sum_temp = 0
       for i in range(len(modules[n_m].thermistors)):
         thermistor = modules[n_m].thermistors[i]
-        print(f'Thermistor {i} temp: {thermistor.temp}')
+        pass
+        #print(f'Thermistor {i} temp: {thermistor.temp}')
         sum_temp += thermistor.temp
         if thermistor.temp < min_temp:
           min_temp = thermistor.temp
@@ -360,7 +388,8 @@ def generate_random_can_data(n_m: int) -> bytes:
 
       checksum = (n_m + min_temp + max_temp + avg_temp + num_thermistors + 
                   highest_therm_id + lowest_therm_id) % 256
-      print(f'Module ID: {n_m} Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')
+      pass
+      #print(f'Module ID: {n_m} Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')
       # Match module message byte pattern
       payload = struct.pack('>BbbbBBBB', n_m, min_temp, max_temp, avg_temp,
                               num_thermistors, highest_therm_id, lowest_therm_id, checksum)
@@ -372,7 +401,8 @@ def generate_random_can_data(n_m: int) -> bytes:
         max_temp = random.randint(temp, 80)
         highest_therm_id = random.randint(0, N_THERMISTORS_PER_MODULE - 1)
         lowest_therm_id = random.randint(0, highest_therm_id)
-        print(f'ID: {therm_id}|Temperature: {temp}|Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')
+        pass
+        #print(f'ID: {therm_id}|Temperature: {temp}|Number of thermistors: {num_thermistors}|min_temp: {min_temp}|max_temp: {max_temp}|highest_id {highest_therm_id}|lowest id: {lowest_therm_id}')
         # Match general message byte pattern
         payload = struct.pack('>HbBbbBB', therm_id, temp, num_thermistors, min_temp,
                               max_temp, highest_therm_id, lowest_therm_id)
